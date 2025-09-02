@@ -539,7 +539,46 @@
                 <div class="control-handle" onclick="togglePanel()"></div>
                 
                 <div class="control-content">
-                    <!-- Active Trip Stats -->
+                    <!-- Active Trip Info -->
+                    <div id="activeTripInfo" class="hidden">
+                        <div class="form-section">
+                            <h3>🚛 Aktivní jízda</h3>
+                            <div class="list-item">
+                                <div class="list-item-content">
+                                    <div class="list-item-title" id="activeTripDriver">Řidič</div>
+                                    <div class="list-item-subtitle" id="activeTripVehicle">Vozidlo</div>
+                                </div>
+                            </div>
+                            <div class="list-item">
+                                <div class="list-item-content">
+                                    <div class="list-item-title">Zahájeno: <span id="tripStartTime"></span></div>
+                                    <div class="list-item-subtitle">
+                                        Tachometr: <span id="tripStartOdo"></span> km | 
+                                        Nádrž: <span id="tripStartFuel"></span>%
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Quick Actions -->
+                        <div class="form-section">
+                            <h3>⚡ Rychlé akce</h3>
+                            <div class="action-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <button class="btn btn-warning" onclick="addQuickEvent('loading')">
+                                    📦 Nakládka
+                                </button>
+                                <button class="btn btn-warning" onclick="addQuickEvent('unloading')">
+                                    📤 Vykládka
+                                </button>
+                                <button class="btn btn-secondary" onclick="addQuickEvent('break')">
+                                    ☕ Přestávka
+                                </button>
+                                <button class="btn btn-secondary" onclick="addQuickEvent('fuel')">
+                                    ⛽ Tankování
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                     <div id="activeStats" class="hidden">
                         <div class="stats-grid">
                             <div class="stat-card">
@@ -805,6 +844,10 @@
             setInterval(updateTime, 1000);
             populateSelects();
             updateLists();
+            
+            // Nastavit výchozí stav UI
+            document.querySelector('.map-container').style.display = 'block';
+            document.getElementById('controlPanel').style.display = 'block';
         });
 
         // Inicializace mapy
@@ -1178,6 +1221,14 @@
             document.getElementById('addEventBtn').classList.remove('hidden');
             document.getElementById('activeStats').classList.remove('hidden');
             document.getElementById('tripLogSection').classList.remove('hidden');
+            document.getElementById('activeTripInfo').classList.remove('hidden');
+            
+            // Vyplnit informace o aktivní jízdě
+            document.getElementById('activeTripDriver').textContent = `👤 ${driver.name}`;
+            document.getElementById('activeTripVehicle').textContent = `🚚 ${vehicle.plate} (${vehicle.type})`;
+            document.getElementById('tripStartTime').textContent = tripStartTime.toLocaleString('cs-CZ');
+            document.getElementById('tripStartOdo').textContent = parseInt(startOdometer).toLocaleString();
+            document.getElementById('tripStartFuel').textContent = startFuel;
             
             // Spustit timer
             tripTimer = setInterval(updateTripDuration, 1000);
@@ -1247,6 +1298,7 @@
             document.getElementById('addEventBtn').classList.add('hidden');
             document.getElementById('activeStats').classList.add('hidden');
             document.getElementById('tripLogSection').classList.add('hidden');
+            document.getElementById('activeTripInfo').classList.add('hidden');
             
             document.getElementById('tripLog').innerHTML = '';
             
@@ -1385,6 +1437,22 @@
         }
 
         function addTripLogEntry(text, type = '') {
+            const logContainer = document.getElementById('tripLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            
+            const time = new Date().toLocaleTimeString('cs-CZ');
+            const position = currentPosition ? 
+                ` [${currentPosition.lat.toFixed(4)}, ${currentPosition.lng.toFixed(4)}]` : '';
+            
+            entry.innerHTML = `
+                <div class="log-time">${time}${position}</div>
+                <div class="log-action">${text}</div>
+            `;
+            
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
             const logContainer = document.getElementById('tripLog');
             const entry = document.createElement('div');
             entry.className = 'log-entry';
@@ -1567,11 +1635,23 @@
             // Zavřít všechny screeny
             closeAllScreens();
             
-            // Zobrazit vybraný screen
-            if (tabName !== 'trip') {
+            // Zobrazit vybraný screen nebo mapu
+            if (tabName === 'trip') {
+                // Zobrazit mapu a control panel
+                document.querySelector('.map-container').style.display = 'block';
+                document.getElementById('controlPanel').style.display = 'block';
+            } else {
+                // Skrýt mapu a zobrazit screen
+                document.querySelector('.map-container').style.display = 'none';
+                document.getElementById('controlPanel').style.display = 'none';
                 document.getElementById(tabName + 'Screen').classList.add('show');
+                
                 if (tabName === 'history') {
                     updateHistory();
+                } else if (tabName === 'drivers') {
+                    updateDriversList();
+                } else if (tabName === 'vehicles') {
+                    updateVehiclesList();
                 }
             }
         }
@@ -1619,6 +1699,10 @@
             document.getElementById('driversScreen').classList.remove('show');
             document.getElementById('vehiclesScreen').classList.remove('show');
             document.getElementById('historyScreen').classList.remove('show');
+            
+            // Obnovit viditelnost mapy a control panelu
+            document.querySelector('.map-container').style.display = 'block';
+            document.getElementById('controlPanel').style.display = 'block';
         }
 
         function closeModal(modalId) {
