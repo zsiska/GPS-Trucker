@@ -1162,8 +1162,19 @@
                 return 'Analyzuji podmínky...';
             }
             
-            showVehicleDetails() {
-                this.showNotification(`Vozidlo: ${this.getActionName(this.currentAction)}, ${Math.round(this.currentSpeed)} km/h`, 'info');
+            showOtherVehicleInfo(vehicleId) {
+                const vehicleData = {
+                    '2': { driver: 'Marie Svobodová', status: 'driving', speed: 72, fuel: 84 },
+                    '3': { driver: 'Petr Dvořák', status: 'loading', speed: 0, fuel: 45 }
+                };
+                
+                const vehicle = vehicleData[vehicleId];
+                if (vehicle) {
+                    this.showNotification(
+                        `${vehicle.driver}: ${this.getActionName(vehicle.status)}, ${vehicle.speed} km/h, ${vehicle.fuel}% paliva`, 
+                        'info'
+                    );
+                }
             }
             
             addLog(message, type = 'info') {
