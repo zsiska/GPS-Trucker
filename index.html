@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IES Fleet Management System</title>
+    <title>IES Fleet Management System - Funkční demo</title>
     <style>
         * {
             margin: 0;
@@ -49,11 +49,18 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
+            animation: pulse 2s infinite;
         }
 
         .status-online { background: #4ade80; }
         .status-gps { background: #3b82f6; }
         .status-bluetooth { background: #8b5cf6; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
 
         .main-container {
             display: flex;
@@ -63,7 +70,7 @@
         }
 
         .sidebar {
-            width: 300px;
+            width: 350px;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 15px;
             padding: 1.5rem;
@@ -100,31 +107,85 @@
 
         .map {
             width: 100%;
-            height: 100%;
-            background: #f8fafc;
+            height: calc(100% - 30px);
+            background: linear-gradient(45deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
             border-radius: 8px;
             position: relative;
             overflow: hidden;
+            border: 2px solid #e0e7ff;
+        }
+
+        .road {
+            position: absolute;
+            background: #374151;
+            border-radius: 2px;
+        }
+
+        .road-horizontal {
+            height: 4px;
+            width: 100%;
+            top: 50%;
+            left: 0;
+        }
+
+        .road-vertical {
+            width: 4px;
+            height: 100%;
+            left: 50%;
+            top: 0;
         }
 
         .vehicle-marker {
             position: absolute;
-            width: 20px;
-            height: 20px;
-            background: #ef4444;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             border: 3px solid white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             cursor: pointer;
             transition: all 0.3s ease;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+            font-weight: bold;
         }
 
-        .vehicle-marker.driving { background: #22c55e; }
-        .vehicle-marker.idle { background: #f59e0b; }
-        .vehicle-marker.loading { background: #3b82f6; }
+        .vehicle-marker.driving { 
+            background: #22c55e; 
+            animation: moveForward 3s infinite linear;
+        }
+        .vehicle-marker.idle { 
+            background: #f59e0b; 
+            animation: idle 2s infinite ease-in-out;
+        }
+        .vehicle-marker.loading { 
+            background: #3b82f6; 
+            animation: loading 1s infinite ease-in-out;
+        }
+        .vehicle-marker.break { background: #8b5cf6; }
+        .vehicle-marker.fuel { background: #ef4444; }
+
+        @keyframes moveForward {
+            0% { transform: translateX(0px) scale(1); }
+            50% { transform: translateX(2px) scale(1.1); }
+            100% { transform: translateX(0px) scale(1); }
+        }
+
+        @keyframes idle {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(0.9); opacity: 0.8; }
+        }
+
+        @keyframes loading {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
 
         .vehicle-marker:hover {
-            transform: scale(1.2);
+            transform: scale(1.3) !important;
             z-index: 100;
         }
 
@@ -153,7 +214,7 @@
             padding: 1rem;
             border: none;
             border-radius: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
             color: white;
             font-size: 0.9rem;
             font-weight: 600;
@@ -163,23 +224,37 @@
             align-items: center;
             justify-content: center;
             gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
         }
 
         .action-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
         }
 
         .action-btn.active {
             background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            animation: activeButton 0.5s ease;
+        }
+
+        .action-btn.recommended {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes activeButton {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
 
         .esr-panel {
             margin-top: 1rem;
             padding: 1rem;
-            background: #f8fafc;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             border-radius: 10px;
-            border: 2px dashed #cbd5e1;
+            border: 2px solid #cbd5e1;
         }
 
         .esr-title {
@@ -196,50 +271,64 @@
         }
 
         .condition-tag {
-            padding: 0.25rem 0.75rem;
+            padding: 0.4rem 0.8rem;
             border-radius: 20px;
             font-size: 0.75rem;
             font-weight: 500;
+            transition: all 0.3s ease;
         }
 
         .condition-met {
             background: #dcfce7;
             color: #166534;
+            border: 2px solid #22c55e;
+            animation: conditionMet 0.5s ease;
         }
 
         .condition-unmet {
             background: #fef2f2;
             color: #991b1b;
+            border: 2px solid #ef4444;
+        }
+
+        @keyframes conditionMet {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
         }
 
         .timer-display {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: 700;
             text-align: center;
             color: #1f2937;
             margin: 1rem 0;
+            font-family: 'Courier New', monospace;
         }
 
         .progress-bar {
             width: 100%;
-            height: 8px;
+            height: 12px;
             background: #e5e7eb;
-            border-radius: 4px;
+            border-radius: 6px;
             overflow: hidden;
             margin: 1rem 0;
+            border: 1px solid #d1d5db;
         }
 
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, #3b82f6, #1d4ed8);
             transition: width 1s ease;
+            border-radius: 6px;
         }
 
         .driver-info {
-            background: #f8fafc;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             padding: 1rem;
             border-radius: 10px;
             margin-bottom: 1rem;
+            border: 1px solid #cbd5e1;
         }
 
         .vehicle-status {
@@ -254,18 +343,27 @@
             padding: 1rem;
             border-radius: 8px;
             text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+
+        .status-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
         }
 
         .status-value {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: 700;
             margin-bottom: 0.5rem;
+            color: #1f2937;
         }
 
         .status-label {
             font-size: 0.8rem;
             color: #6b7280;
+            font-weight: 500;
         }
 
         .log-area {
@@ -278,15 +376,18 @@
             height: 200px;
             overflow-y: auto;
             margin-top: 1rem;
+            border: 2px solid #374151;
         }
 
         .log-entry {
             margin-bottom: 0.5rem;
             padding: 0.25rem 0;
+            border-bottom: 1px solid rgba(75, 85, 99, 0.3);
         }
 
         .log-timestamp {
             color: #9ca3af;
+            font-weight: bold;
         }
 
         .log-info { color: #3b82f6; }
@@ -294,39 +395,77 @@
         .log-error { color: #ef4444; }
         .log-success { color: #10b981; }
 
-        .modal {
+        .notification {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
             z-index: 1000;
+            transform: translateX(400px);
+            transition: all 0.5s ease;
         }
 
-        .modal-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
+        .notification.show {
+            transform: translateX(0);
         }
 
-        .modal h2 {
+        .notification.success { background: #22c55e; }
+        .notification.warning { background: #f59e0b; }
+        .notification.error { background: #ef4444; }
+        .notification.info { background: #3b82f6; }
+
+        .controls-section {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border: 1px solid #e2e8f0;
+        }
+
+        .controls-section h4 {
             margin-bottom: 1rem;
             color: #1f2937;
         }
 
-        .close-btn {
-            float: right;
-            font-size: 1.5rem;
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 25px;
+            background: #e5e7eb;
+            border-radius: 25px;
             cursor: pointer;
-            color: #6b7280;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background: #22c55e;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 21px;
+            height: 21px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .toggle-switch.active::after {
+            left: 27px;
         }
 
         @media (max-width: 768px) {
@@ -336,6 +475,7 @@
             
             .sidebar {
                 width: 100%;
+                order: 2;
             }
             
             .dashboard-grid {
@@ -351,19 +491,19 @@
 </head>
 <body>
     <div class="header">
-        <h1>IES Fleet Management System</h1>
+        <h1>IES Fleet Management System - Live Demo</h1>
         <div class="status-bar">
             <div class="status-item">
                 <div class="status-dot status-online"></div>
-                <span>Online</span>
+                <span id="connection-status">Online</span>
             </div>
             <div class="status-item">
                 <div class="status-dot status-gps"></div>
-                <span>GPS Aktivní</span>
+                <span id="gps-status">GPS Aktivní</span>
             </div>
             <div class="status-item">
                 <div class="status-dot status-bluetooth"></div>
-                <span>Bluetooth Připojen</span>
+                <span id="bt-status">Bluetooth Připojen</span>
             </div>
             <div class="status-item">
                 <span id="current-time"></span>
@@ -378,6 +518,7 @@
                 <p><strong>Jan Novák</strong></p>
                 <p>ID: 12345</p>
                 <p>SPZ: 1A2 3456</p>
+                <p>Směna: <span id="shift-time">0:00</span></p>
             </div>
 
             <div class="vehicle-status">
@@ -386,43 +527,48 @@
                     <div class="status-label">km/h</div>
                 </div>
                 <div class="status-card">
-                    <div class="status-value" id="total-distance">245</div>
+                    <div class="status-value" id="total-distance">0</div>
                     <div class="status-label">km celkem</div>
                 </div>
                 <div class="status-card">
-                    <div class="status-value" id="work-time">7:32</div>
+                    <div class="status-value" id="work-time">0:00</div>
                     <div class="status-label">doba práce</div>
                 </div>
                 <div class="status-card">
-                    <div class="status-value" id="break-time">0:45</div>
+                    <div class="status-value" id="break-time">0:00</div>
                     <div class="status-label">přestávky</div>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <h4>Simulace vozidla</h4>
+                <div class="control-row">
+                    <span>Auto-režim</span>
+                    <div class="toggle-switch" id="auto-mode-toggle"></div>
+                </div>
+                <div class="control-row">
+                    <span>GPS tracking</span>
+                    <div class="toggle-switch active" id="gps-toggle"></div>
+                </div>
+                <div class="control-row">
+                    <span>Bluetooth PTO</span>
+                    <div class="toggle-switch" id="pto-toggle"></div>
                 </div>
             </div>
 
             <div class="esr-panel">
                 <div class="esr-title">Expert System (ESR)</div>
-                <div class="esr-conditions" id="esr-conditions">
-                    <span class="condition-tag condition-met">GPS_FIX</span>
-                    <span class="condition-tag condition-unmet">HAS_SUBS</span>
-                    <span class="condition-tag condition-met">ENGINE_ON</span>
-                    <span class="condition-tag condition-unmet">IN_PLACE</span>
-                </div>
+                <div class="esr-conditions" id="esr-conditions"></div>
                 <div class="timer-display" id="esr-timer">00:00</div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="esr-progress"></div>
                 </div>
-                <div id="esr-recommendation">Doporučený režim: Jízda</div>
+                <div id="esr-recommendation">Analyzuji podmínky...</div>
             </div>
 
             <div class="log-area" id="log-area">
                 <div class="log-entry log-info">
-                    <span class="log-timestamp">10:15:23</span> GPS signal získán
-                </div>
-                <div class="log-entry log-success">
-                    <span class="log-timestamp">10:15:45</span> Bluetooth připojen
-                </div>
-                <div class="log-entry log-info">
-                    <span class="log-timestamp">10:16:02</span> Režim změněn: Jízda
+                    <span class="log-timestamp">--:--:--</span> Systém inicializován
                 </div>
             </div>
         </div>
@@ -430,429 +576,284 @@
         <div class="content-area">
             <div class="dashboard-grid">
                 <div class="map-container">
-                    <h3>Mapa vozidel</h3>
+                    <h3>Mapa vozidel - Live tracking</h3>
                     <div class="map" id="map">
-                        <div class="vehicle-marker driving" style="left: 30%; top: 40%;" data-vehicle="1"></div>
-                        <div class="vehicle-marker idle" style="left: 60%; top: 20%;" data-vehicle="2"></div>
-                        <div class="vehicle-marker loading" style="left: 80%; top: 70%;" data-vehicle="3"></div>
+                        <div class="road road-horizontal"></div>
+                        <div class="road road-vertical"></div>
+                        <div class="vehicle-marker idle" id="main-vehicle" style="left: 45%; top: 45%;">🚛</div>
                     </div>
                 </div>
 
                 <div class="vehicle-info">
-                    <h3>Informace vozidla</h3>
+                    <h3>Detail vozidla</h3>
                     <div id="selected-vehicle-info">
                         <p><strong>Vozidlo:</strong> Volvo FH16</p>
                         <p><strong>Řidič:</strong> Jan Novák</p>
-                        <p><strong>Aktuální režim:</strong> <span id="current-mode">Jízda</span></p>
-                        <p><strong>Místo:</strong> <span id="current-location">Na cestě</span></p>
+                        <p><strong>Režim:</strong> <span id="current-mode">Prostoj</span></p>
+                        <p><strong>Místo:</strong> <span id="current-location">Depot</span></p>
                         <p><strong>GPS:</strong> <span id="gps-coords">50.0755, 14.4378</span></p>
-                        <p><strong>Rychlost:</strong> <span id="vehicle-speed">65 km/h</span></p>
+                        <p><strong>Rychlost:</strong> <span id="vehicle-speed">0 km/h</span></p>
                         <p><strong>Palivo:</strong> <span id="fuel-level">78%</span></p>
+                        <p><strong>Teplota motoru:</strong> <span id="engine-temp">85°C</span></p>
                     </div>
                 </div>
             </div>
 
             <div class="actions-panel">
-                <h3>Ovládací panel</h3>
+                <h3>Ovládací panel - Klikni pro změnu režimu</h3>
                 <div class="action-buttons">
-                    <button class="action-btn active" data-action="driving">🚛 Jízda</button>
+                    <button class="action-btn" data-action="driving">🚛 Jízda</button>
                     <button class="action-btn" data-action="loading">📦 Nakládka</button>
                     <button class="action-btn" data-action="unloading">📤 Vykládka</button>
                     <button class="action-btn" data-action="break">☕ Přestávka</button>
-                    <button class="action-btn" data-action="idle">⏸️ Prostoj</button>
+                    <button class="action-btn active" data-action="idle">⏸️ Prostoj</button>
                     <button class="action-btn" data-action="fuel">⛽ Tankování</button>
                     <button class="action-btn" data-action="maintenance">🔧 Údržba</button>
                     <button class="action-btn" data-action="unknown">❓ Neznámá činnost</button>
                 </div>
 
                 <div class="esr-panel">
-                    <div class="esr-title">Automatické rozpoznávání (ESR)</div>
-                    <p>Systém analyzuje: GPS poloha, rychlost, PTO signály, doba činnosti</p>
-                    <div class="timer-display" id="auto-timer">Vyhodnocení za: 12s</div>
+                    <div class="esr-title">Automatické rozpoznávání</div>
+                    <p>Systém analyzuje: GPS, rychlost, PTO signály, čas, poloha</p>
+                    <div class="timer-display" id="auto-timer">Vyhodnocení za: 15s</div>
                     <div class="progress-bar">
-                        <div class="progress-fill" id="auto-progress" style="width: 75%;"></div>
+                        <div class="progress-fill" id="auto-progress" style="width: 0%;"></div>
                     </div>
+                    <div id="auto-status">Čekám na data...</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal pro podrobnosti vozidla -->
-    <div class="modal" id="vehicle-modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal()">&times;</span>
-            <h2>Detail vozidla</h2>
-            <div id="modal-vehicle-details"></div>
-        </div>
-    </div>
+    <div class="notification" id="notification"></div>
 
     <script>
-        // Simulace dat a funkcionalita
-        class IESFleetSystem {
+        class FleetManagementSystem {
             constructor() {
-                this.currentAction = 'driving';
+                // Core state
+                this.currentAction = 'idle';
                 this.esrTimer = 0;
                 this.autoTimer = 15;
-                this.workStartTime = Date.now() - (7.5 * 60 * 60 * 1000); // 7.5 hodin zpět
-                this.totalDistance = 245;
+                this.shiftStartTime = Date.now();
+                this.workStartTime = null;
+                this.breakStartTime = null;
+                this.totalDistance = 0;
                 this.currentSpeed = 0;
-                this.gpsCoords = { lat: 50.0755, lng: 14.4378 };
+                this.fuelLevel = 78;
+                this.engineTemp = 85;
                 
+                // GPS and location
+                this.gpsCoords = { lat: 50.0755, lng: 14.4378 };
+                this.vehiclePosition = { x: 45, y: 45 };
+                this.isMoving = false;
+                
+                // ESR conditions - real functional system
                 this.conditions = {
                     GPS_FIX: true,
                     HAS_SUBS: false,
-                    ENGINE_ON: true,
-                    IN_PLACE: false,
+                    ENGINE_ON: false,
+                    IN_PLACE: true,
                     DRIVING: false,
                     IDLE: true,
                     HAS_TRAILERS: false,
-                    ANY_PTO: false
+                    ANY_PTO: false,
+                    FUEL_LOW: false,
+                    ENGINE_HOT: false
                 };
-
-                this.vehicles = [
-                    { id: 1, driver: 'Jan Novák', status: 'driving', speed: 65, location: 'Praha - Brno', fuel: 78 },
-                    { id: 2, driver: 'Marie Svobodová', status: 'idle', speed: 0, location: 'Logistické centrum', fuel: 45 },
-                    { id: 3, driver: 'Petr Dvořák', status: 'loading', speed: 0, location: 'Sklad Ostrava', fuel: 92 }
-                ];
-
-                this.init();
+                
+                // Settings
+                this.settings = {
+                    autoMode: false,
+                    gpsActive: true,
+                    ptoConnected: false
+                };
+                
+                // Timers
+                this.workTime = 0;
+                this.breakTime = 0;
+                
+                this.initialize();
             }
-
-            init() {
+            
+            initialize() {
                 this.setupEventListeners();
-                this.startTimers();
-                this.updateDisplay();
-                this.simulateGPSMovement();
+                this.startMainLoop();
+                this.addLog('Systém spuštěn a připraven', 'success');
+                this.showNotification('Systém inicializován!', 'success');
             }
-
+            
             setupEventListeners() {
                 // Action buttons
                 document.querySelectorAll('.action-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         const action = e.target.dataset.action;
-                        this.changeAction(action);
+                        this.changeAction(action, 'manual');
                     });
                 });
-
-                // Vehicle markers
-                document.querySelectorAll('.vehicle-marker').forEach(marker => {
-                    marker.addEventListener('click', (e) => {
-                        const vehicleId = parseInt(e.target.dataset.vehicle);
-                        this.showVehicleDetails(vehicleId);
-                    });
+                
+                // Toggle switches
+                document.getElementById('auto-mode-toggle').addEventListener('click', (e) => {
+                    this.toggleSetting('autoMode');
+                });
+                
+                document.getElementById('gps-toggle').addEventListener('click', (e) => {
+                    this.toggleSetting('gpsActive');
+                });
+                
+                document.getElementById('pto-toggle').addEventListener('click', (e) => {
+                    this.toggleSetting('ptoConnected');
+                });
+                
+                // Vehicle marker click
+                document.getElementById('main-vehicle').addEventListener('click', () => {
+                    this.showVehicleDetails();
+                });
+                
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.altKey) {
+                        const actions = ['driving', 'loading', 'unloading', 'break', 'idle', 'fuel', 'maintenance', 'unknown'];
+                        const key = parseInt(e.key);
+                        if (key >= 1 && key <= 8) {
+                            this.changeAction(actions[key - 1], 'keyboard');
+                            e.preventDefault();
+                        }
+                    }
                 });
             }
-
-            startTimers() {
-                // Update time display
+            
+            startMainLoop() {
+                // Main update loop - 1 second
                 setInterval(() => {
-                    document.getElementById('current-time').textContent = 
-                        new Date().toLocaleTimeString('cs-CZ');
-                }, 1000);
-
-                // ESR timer
-                setInterval(() => {
+                    this.updateTime();
                     this.updateESRSystem();
-                }, 1000);
-
-                // Auto recognition timer
-                setInterval(() => {
                     this.updateAutoRecognition();
+                    this.updateVehicleSimulation();
+                    this.updateDisplay();
+                    this.checkBreakReminders();
                 }, 1000);
-
-                // Simulate speed changes
+                
+                // Fast update loop - vehicle movement
                 setInterval(() => {
-                    this.simulateSpeedChange();
-                }, 2000);
+                    this.simulateVehicleMovement();
+                }, 200);
             }
-
-            changeAction(action) {
-                // Remove active class from all buttons
-                document.querySelectorAll('.action-btn').forEach(btn => {
-                    btn.classList.remove('active');
-                });
-
-                // Add active class to clicked button
-                document.querySelector(`[data-action="${action}"]`).classList.add('active');
-
+            
+            changeAction(action, source = 'manual') {
+                const oldAction = this.currentAction;
                 this.currentAction = action;
+                
+                // Update button states
+                document.querySelectorAll('.action-btn').forEach(btn => {
+                    btn.classList.remove('active', 'recommended');
+                });
+                document.querySelector(`[data-action="${action}"]`).classList.add('active');
+                
+                // Update work/break timing
+                this.updateWorkBreakTimers(action, oldAction);
+                
+                // Update conditions based on new action
+                this.updateConditionsForAction(action);
+                
+                // Update vehicle visual state
+                this.updateVehicleVisuals(action);
+                
+                // Reset ESR timer
                 this.esrTimer = 0;
-
-                // Log the action change
-                this.addLogEntry(`Režim změněn: ${this.getActionName(action)}`, 'success');
-
-                // Update conditions based on action
-                this.updateConditions(action);
+                
+                // Log the change
+                const actionName = this.getActionName(action);
+                this.addLog(`Režim změněn: ${actionName} (${source})`, source === 'auto' ? 'warning' : 'success');
+                
+                if (source === 'auto') {
+                    this.showNotification(`Auto-změna: ${actionName}`, 'info');
+                } else if (source === 'keyboard') {
+                    this.showNotification(`Klávesová zkratka: ${actionName}`, 'success');
+                }
+                
                 this.updateDisplay();
             }
-
-            updateConditions(action) {
-                // Reset conditions
-                Object.keys(this.conditions).forEach(key => {
-                    this.conditions[key] = false;
-                });
-
-                // Set basic conditions
-                this.conditions.GPS_FIX = true;
-                this.conditions.ENGINE_ON = true;
-
-                // Set action-specific conditions
+            
+            updateWorkBreakTimers(newAction, oldAction) {
+                const now = Date.now();
+                
+                // End previous state
+                if (oldAction === 'break' && this.breakStartTime) {
+                    this.breakTime += Math.floor((now - this.breakStartTime) / 1000);
+                    this.breakStartTime = null;
+                } else if (oldAction !== 'break' && this.workStartTime) {
+                    this.workTime += Math.floor((now - this.workStartTime) / 1000);
+                    this.workStartTime = null;
+                }
+                
+                // Start new state
+                if (newAction === 'break') {
+                    this.breakStartTime = now;
+                } else {
+                    this.workStartTime = now;
+                }
+            }
+            
+            updateConditionsForAction(action) {
+                // Reset some conditions
+                this.conditions.DRIVING = false;
+                this.conditions.IDLE = false;
+                this.conditions.IN_PLACE = false;
+                this.conditions.ANY_PTO = false;
+                
                 switch(action) {
                     case 'driving':
                         this.conditions.DRIVING = true;
+                        this.conditions.ENGINE_ON = true;
                         this.conditions.IN_PLACE = false;
+                        this.isMoving = true;
                         break;
+                        
                     case 'loading':
                     case 'unloading':
                         this.conditions.IN_PLACE = true;
-                        this.conditions.ANY_PTO = true;
-                        this.conditions.HAS_SUBS = action === 'loading';
+                        this.conditions.ANY_PTO = this.settings.ptoConnected;
+                        this.conditions.HAS_SUBS = (action === 'loading');
+                        this.conditions.ENGINE_ON = true;
+                        this.isMoving = false;
                         break;
+                        
                     case 'idle':
                     case 'break':
                         this.conditions.IDLE = true;
-                        this.conditions.IN_PLACE = Math.random() > 0.5;
+                        this.conditions.IN_PLACE = Math.random() > 0.3;
+                        this.conditions.ENGINE_ON = (action === 'idle');
+                        this.isMoving = false;
                         break;
+                        
                     case 'fuel':
                         this.conditions.IN_PLACE = true;
+                        this.conditions.ENGINE_ON = false;
+                        this.isMoving = false;
                         break;
-                }
-            }
-
-            updateESRSystem() {
-                this.esrTimer++;
-                
-                // Update conditions display
-                const conditionsContainer = document.getElementById('esr-conditions');
-                conditionsContainer.innerHTML = '';
-                
-                Object.entries(this.conditions).forEach(([condition, met]) => {
-                    const tag = document.createElement('span');
-                    tag.className = `condition-tag ${met ? 'condition-met' : 'condition-unmet'}`;
-                    tag.textContent = condition;
-                    conditionsContainer.appendChild(tag);
-                });
-
-                // Update timer display
-                const minutes = Math.floor(this.esrTimer / 60);
-                const seconds = this.esrTimer % 60;
-                document.getElementById('esr-timer').textContent = 
-                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-                // Update progress bar (45 second cycle)
-                const progress = (this.esrTimer % 45) / 45 * 100;
-                document.getElementById('esr-progress').style.width = `${progress}%`;
-
-                // ESR recommendation
-                const recommendation = this.getESRRecommendation();
-                document.getElementById('esr-recommendation').textContent = recommendation;
-            }
-
-            updateAutoRecognition() {
-                this.autoTimer--;
-                
-                if (this.autoTimer <= 0) {
-                    this.autoTimer = 15 + Math.floor(Math.random() * 30); // 15-45 seconds
-                    this.performAutoRecognition();
-                }
-
-                document.getElementById('auto-timer').textContent = `Vyhodnocení za: ${this.autoTimer}s`;
-                const progress = (15 - this.autoTimer + 15) / 30 * 100;
-                document.getElementById('auto-progress').style.width = `${Math.max(0, progress)}%`;
-            }
-
-            performAutoRecognition() {
-                const possibleActions = this.getRecommendedActions();
-                if (possibleActions.length > 0 && Math.random() > 0.7) {
-                    const recommendedAction = possibleActions[0];
-                    this.addLogEntry(`ESR doporučuje: ${this.getActionName(recommendedAction)}`, 'info');
-                    
-                    // Auto-change with 30% probability
-                    if (Math.random() > 0.7) {
-                        this.changeAction(recommendedAction);
-                        this.addLogEntry(`Automaticky změněno na: ${this.getActionName(recommendedAction)}`, 'warning');
-                    }
-                }
-            }
-
-            getRecommendedActions() {
-                const actions = [];
-                
-                if (this.conditions.DRIVING && this.currentSpeed > 25) {
-                    actions.push('driving');
-                }
-                if (this.conditions.IDLE && this.currentSpeed < 5) {
-                    actions.push('idle');
-                }
-                if (this.conditions.IN_PLACE && this.conditions.ANY_PTO) {
-                    actions.push('loading');
-                }
-                
-                return actions;
-            }
-
-            getESRRecommendation() {
-                const recommended = this.getRecommendedActions();
-                if (recommended.length > 0) {
-                    return `Doporučený režim: ${this.getActionName(recommended[0])}`;
-                }
-                return `Aktuální režim: ${this.getActionName(this.currentAction)}`;
-            }
-
-            simulateSpeedChange() {
-                if (this.currentAction === 'driving') {
-                    this.currentSpeed = 45 + Math.random() * 40; // 45-85 km/h
-                    this.conditions.DRIVING = true;
-                    this.conditions.IDLE = false;
-                } else if (this.currentAction === 'idle' || this.currentAction === 'break') {
-                    this.currentSpeed = Math.random() * 3; // 0-3 km/h
-                    this.conditions.DRIVING = false;
-                    this.conditions.IDLE = true;
-                } else {
-                    this.currentSpeed = Math.random() * 10; // 0-10 km/h
-                    this.conditions.DRIVING = false;
-                    this.conditions.IDLE = true;
-                }
-
-                // Update distance
-                if (this.currentSpeed > 5) {
-                    this.totalDistance += (this.currentSpeed / 3600) * 2; // Every 2 seconds
-                }
-            }
-
-            simulateGPSMovement() {
-                setInterval(() => {
-                    if (this.currentAction === 'driving' && this.currentSpeed > 25) {
-                        this.gpsCoords.lat += (Math.random() - 0.5) * 0.001;
-                        this.gpsCoords.lng += (Math.random() - 0.5) * 0.001;
                         
-                        // Move vehicle marker
-                        const marker = document.querySelector('.vehicle-marker[data-vehicle="1"]');
-                        const currentLeft = parseFloat(marker.style.left);
-                        const currentTop = parseFloat(marker.style.top);
+                    case 'maintenance':
+                        this.conditions.IN_PLACE = true;
+                        this.conditions.ENGINE_ON = false;
+                        this.conditions.ANY_PTO = true;
+                        this.isMoving = false;
+                        break;
                         
-                        marker.style.left = `${Math.min(95, Math.max(5, currentLeft + (Math.random() - 0.5) * 2))}%`;
-                        marker.style.top = `${Math.min(95, Math.max(5, currentTop + (Math.random() - 0.5) * 2))}%`;
-                    }
-                }, 5000);
-            }
-
-            updateDisplay() {
-                document.getElementById('current-speed').textContent = Math.round(this.currentSpeed);
-                document.getElementById('total-distance').textContent = Math.round(this.totalDistance);
-                document.getElementById('current-mode').textContent = this.getActionName(this.currentAction);
-                document.getElementById('gps-coords').textContent = 
-                    `${this.gpsCoords.lat.toFixed(4)}, ${this.gpsCoords.lng.toFixed(4)}`;
-                document.getElementById('vehicle-speed').textContent = `${Math.round(this.currentSpeed)} km/h`;
-
-                // Update work time
-                const workTime = Date.now() - this.workStartTime;
-                const hours = Math.floor(workTime / (1000 * 60 * 60));
-                const minutes = Math.floor((workTime % (1000 * 60 * 60)) / (1000 * 60));
-                document.getElementById('work-time').textContent = `${hours}:${minutes.toString().padStart(2, '0')}`;
-            }
-
-            addLogEntry(message, type = 'info') {
-                const logArea = document.getElementById('log-area');
-                const entry = document.createElement('div');
-                entry.className = `log-entry log-${type}`;
-                entry.innerHTML = `<span class="log-timestamp">${new Date().toLocaleTimeString('cs-CZ')}</span> ${message}`;
-                
-                logArea.insertBefore(entry, logArea.firstChild);
-                
-                // Keep only last 50 entries
-                const entries = logArea.querySelectorAll('.log-entry');
-                if (entries.length > 50) {
-                    entries[entries.length - 1].remove();
+                    default:
+                        this.conditions.IDLE = true;
+                        this.isMoving = false;
                 }
-            }
-
-            showVehicleDetails(vehicleId) {
-                const vehicle = this.vehicles.find(v => v.id === vehicleId);
-                if (!vehicle) return;
-
-                const modal = document.getElementById('vehicle-modal');
-                const details = document.getElementById('modal-vehicle-details');
                 
-                details.innerHTML = `
-                    <div class="vehicle-status">
-                        <div class="status-card">
-                            <div class="status-value">${vehicle.speed}</div>
-                            <div class="status-label">km/h</div>
-                        </div>
-                        <div class="status-card">
-                            <div class="status-value">${vehicle.fuel}</div>
-                            <div class="status-label">% paliva</div>
-                        </div>
-                    </div>
-                    <p><strong>Řidič:</strong> ${vehicle.driver}</p>
-                    <p><strong>Stav:</strong> ${this.getActionName(vehicle.status)}</p>
-                    <p><strong>Lokace:</strong> ${vehicle.location}</p>
-                    <p><strong>Poslední aktualizace:</strong> ${new Date().toLocaleTimeString('cs-CZ')}</p>
-                `;
-
-                modal.style.display = 'flex';
+                // Update derived conditions
+                this.conditions.GPS_FIX = this.settings.gpsActive;
+                this.conditions.FUEL_LOW = this.fuelLevel < 20;
+                this.conditions.ENGINE_HOT = this.engineTemp > 95;
             }
-
-            getActionName(action) {
-                const names = {
-                    'driving': 'Jízda',
-                    'loading': 'Nakládka',
-                    'unloading': 'Vykládka',
-                    'break': 'Přestávka',
-                    'idle': 'Prostoj',
-                    'fuel': 'Tankování',
-                    'maintenance': 'Údržba',
-                    'unknown': 'Neznámá činnost'
-                };
-                return names[action] || action;
-            }
-        }
-
-        // Initialize the system
-        const iesSystem = new IESFleetSystem();
-
-        // Global functions
-        function closeModal() {
-            document.getElementById('vehicle-modal').style.display = 'none';
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('vehicle-modal');
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            if (e.altKey) {
-                switch(e.key) {
-                    case '1':
-                        iesSystem.changeAction('driving');
-                        break;
-                    case '2':
-                        iesSystem.changeAction('loading');
-                        break;
-                    case '3':
-                        iesSystem.changeAction('unloading');
-                        break;
-                    case '4':
-                        iesSystem.changeAction('break');
-                        break;
-                    case '5':
-                        iesSystem.changeAction('idle');
-                        break;
-                    case '6':
-                        iesSystem.changeAction('fuel');
-                        break;
-                    case '7':
-                        iesSystem.changeAction('maintenance');
-                        break;
-                    case '8':
-                        iesSystem.changeAction('unknown');
-                        break;
-                }
-            }
-        });
+            
+            updateVehicleVisuals(action) {
+                const vehicle = document.getElementById('main-vehicle');
+                vehicle.className = `vehicle-marker ${action}`;
+                
+                // Update speed based on action
+                if (action === 'driving') {
+                    this.
