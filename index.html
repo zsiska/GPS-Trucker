@@ -621,6 +621,10 @@
                     </div>
                     <div id="auto-status">Čekám na data...</div>
                 </div>
+
+                <button id="export-csv" style="margin-top:1rem;padding:.6rem 1rem;border-radius:8px;border:1px solid #cbd5e1;background:#fff;font-weight:600;cursor:pointer;">
+                    Export CSV
+                </button>
             </div>
         </div>
     </div>
@@ -641,13 +645,16 @@
                 this.currentSpeed = 0;
                 this.fuelLevel = 78;
                 this.engineTemp = 85;
-                
-                // GPS and location
+
+                // GPS and route
                 this.gpsCoords = { lat: 50.0755, lng: 14.4378 };
                 this.vehiclePosition = { x: 45, y: 45 };
                 this.isMoving = false;
-                
-                // ESR conditions - real functional system
+                this.route = [];
+                this.lastPosition = null;
+                this.gpsWatchId = null;
+
+                // ESR conditions
                 this.conditions = {
                     GPS_FIX: true,
                     HAS_SUBS: false,
@@ -660,55 +667,64 @@
                     FUEL_LOW: false,
                     ENGINE_HOT: false
                 };
-                
+
                 // Settings
                 this.settings = {
                     autoMode: false,
                     gpsActive: true,
                     ptoConnected: false
                 };
-                
+
                 // Timers
                 this.workTime = 0;
                 this.breakTime = 0;
-                
+
+                // Fuel logs
+                this.fuels = [];
+
                 this.initialize();
             }
-            
+
             initialize() {
                 this.setupEventListeners();
                 this.startMainLoop();
                 this.addLog('Systém spuštěn a připraven', 'success');
                 this.showNotification('Systém inicializován!', 'success');
+
+                // Start GPS if active
+                if (this.settings.gpsActive) this.startGpsWatch();
+
+                // Export CSV button
+                document.getElementById('export-csv')?.addEventListener('click', () => this.exportCsv());
             }
-            
+
             setupEventListeners() {
                 // Action buttons
                 document.querySelectorAll('.action-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
-                        const action = e.target.dataset.action;
+                        const action = e.currentTarget.dataset.action;
                         this.changeAction(action, 'manual');
                     });
                 });
-                
+
                 // Toggle switches
-                document.getElementById('auto-mode-toggle').addEventListener('click', (e) => {
+                document.getElementById('auto-mode-toggle').addEventListener('click', () => {
                     this.toggleSetting('autoMode');
                 });
-                
-                document.getElementById('gps-toggle').addEventListener('click', (e) => {
+
+                document.getElementById('gps-toggle').addEventListener('click', () => {
                     this.toggleSetting('gpsActive');
                 });
-                
-                document.getElementById('pto-toggle').addEventListener('click', (e) => {
+
+                document.getElementById('pto-toggle').addEventListener('click', () => {
                     this.toggleSetting('ptoConnected');
                 });
-                
+
                 // Vehicle marker click
                 document.getElementById('main-vehicle').addEventListener('click', () => {
                     this.showVehicleDetails();
                 });
-                
+
                 // Keyboard shortcuts
                 document.addEventListener('keydown', (e) => {
                     if (e.altKey) {
@@ -721,7 +737,7 @@
                     }
                 });
             }
-            
+
             startMainLoop() {
                 // Main update loop - 1 second
                 setInterval(() => {
@@ -732,51 +748,65 @@
                     this.updateDisplay();
                     this.checkBreakReminders();
                 }, 1000);
-                
+
                 // Fast update loop - vehicle movement
                 setInterval(() => {
                     this.simulateVehicleMovement();
                 }, 200);
             }
-            
+
             changeAction(action, source = 'manual') {
                 const oldAction = this.currentAction;
                 this.currentAction = action;
-                
+
                 // Update button states
                 document.querySelectorAll('.action-btn').forEach(btn => {
                     btn.classList.remove('active', 'recommended');
                 });
-                document.querySelector(`[data-action="${action}"]`).classList.add('active');
-                
+                const activeBtn = document.querySelector(`[data-action="${action}"]`);
+                if (activeBtn) activeBtn.classList.add('active');
+
                 // Update work/break timing
                 this.updateWorkBreakTimers(action, oldAction);
-                
+
                 // Update conditions based on new action
                 this.updateConditionsForAction(action);
-                
+
                 // Update vehicle visual state
                 this.updateVehicleVisuals(action);
-                
+
                 // Reset ESR timer
                 this.esrTimer = 0;
-                
+
                 // Log the change
                 const actionName = this.getActionName(action);
                 this.addLog(`Režim změněn: ${actionName} (${source})`, source === 'auto' ? 'warning' : 'success');
-                
+
                 if (source === 'auto') {
                     this.showNotification(`Auto-změna: ${actionName}`, 'info');
                 } else if (source === 'keyboard') {
                     this.showNotification(`Klávesová zkratka: ${actionName}`, 'success');
                 }
-                
+
+                // Fuel quick form on 'fuel'
+                if (action === 'fuel') {
+                    const liters = parseFloat(prompt('Litry (např. 120.5):') || '0');
+                    const price = parseFloat(prompt('Cena celkem (Kč):') || '0');
+                    if (liters > 0) {
+                        this.fuels.push({ at: Date.now(), liters, price, coords: { ...this.gpsCoords } });
+                        this.addLog(`Tankování: ${liters.toFixed(2)} l, ${price ? price.toFixed(2)+' Kč' : '—'}`, 'success');
+                        this.showNotification('Tankování uloženo', 'success');
+                    } else {
+                        this.addLog('Tankování zrušeno / neplatné', 'warning');
+                    }
+                }
+
                 this.updateDisplay();
             }
-            
+
             updateWorkBreakTimers(newAction, oldAction) {
                 const now = Date.now();
-                
+
                 // End previous state
                 if (oldAction === 'break' && this.breakStartTime) {
                     this.breakTime += Math.floor((now - this.breakStartTime) / 1000);
@@ -785,7 +815,7 @@
                     this.workTime += Math.floor((now - this.workStartTime) / 1000);
                     this.workStartTime = null;
                 }
-                
+
                 // Start new state
                 if (newAction === 'break') {
                     this.breakStartTime = now;
@@ -793,14 +823,14 @@
                     this.workStartTime = now;
                 }
             }
-            
+
             updateConditionsForAction(action) {
                 // Reset some conditions
                 this.conditions.DRIVING = false;
                 this.conditions.IDLE = false;
                 this.conditions.IN_PLACE = false;
                 this.conditions.ANY_PTO = false;
-                
+
                 switch(action) {
                     case 'driving':
                         this.conditions.DRIVING = true;
@@ -808,7 +838,7 @@
                         this.conditions.IN_PLACE = false;
                         this.isMoving = true;
                         break;
-                        
+
                     case 'loading':
                     case 'unloading':
                         this.conditions.IN_PLACE = true;
@@ -817,7 +847,7 @@
                         this.conditions.ENGINE_ON = true;
                         this.isMoving = false;
                         break;
-                        
+
                     case 'idle':
                     case 'break':
                         this.conditions.IDLE = true;
@@ -825,36 +855,40 @@
                         this.conditions.ENGINE_ON = (action === 'idle');
                         this.isMoving = false;
                         break;
-                        
+
                     case 'fuel':
                         this.conditions.IN_PLACE = true;
                         this.conditions.ENGINE_ON = false;
                         this.isMoving = false;
                         break;
-                        
+
                     case 'maintenance':
                         this.conditions.IN_PLACE = true;
                         this.conditions.ENGINE_ON = false;
                         this.conditions.ANY_PTO = true;
                         this.isMoving = false;
                         break;
-                        
+
                     default:
                         this.conditions.IDLE = true;
                         this.isMoving = false;
                 }
-                
+
                 // Update derived conditions
                 this.conditions.GPS_FIX = this.settings.gpsActive;
                 this.conditions.FUEL_LOW = this.fuelLevel < 20;
                 this.conditions.ENGINE_HOT = this.engineTemp > 95;
             }
-            
+
             updateVehicleVisuals(action) {
                 const vehicle = document.getElementById('main-vehicle');
                 vehicle.className = `vehicle-marker ${action}`;
-                
-                // Update speed based on action
+
+                // Avoid overriding GPS-derived speed when GPS is active
+                const usingGps = this.settings.gpsActive && this.gpsWatchId;
+                if (usingGps) return;
+
+                // Update speed based on action (simulation)
                 if (action === 'driving') {
                     this.currentSpeed = 40 + Math.random() * 40; // 40-80 km/h
                 } else if (action === 'loading' || action === 'unloading') {
@@ -863,14 +897,14 @@
                     this.currentSpeed = 0;
                 }
             }
-            
+
             updateESRSystem() {
                 this.esrTimer++;
-                
+
                 // Update conditions display with real data
                 const conditionsContainer = document.getElementById('esr-conditions');
                 conditionsContainer.innerHTML = '';
-                
+
                 Object.entries(this.conditions).forEach(([condition, met]) => {
                     const tag = document.createElement('span');
                     tag.className = `condition-tag ${met ? 'condition-met' : 'condition-unmet'}`;
@@ -892,14 +926,14 @@
                 // Update ESR recommendation
                 const recommendation = this.getESRRecommendation();
                 document.getElementById('esr-recommendation').textContent = recommendation;
-                
+
                 // Highlight recommended action if any
                 this.highlightRecommendedAction();
             }
-            
+
             updateAutoRecognition() {
                 this.autoTimer--;
-                
+
                 if (this.autoTimer <= 0) {
                     this.autoTimer = 10 + Math.floor(Math.random() * 20); // 10-30 seconds
                     this.performAutoRecognition();
@@ -909,36 +943,41 @@
                 const maxTime = 30;
                 const progress = ((maxTime - this.autoTimer) / maxTime) * 100;
                 document.getElementById('auto-progress').style.width = `${progress}%`;
-                
+
                 // Update auto status
                 document.getElementById('auto-status').textContent = this.getAutoStatus();
             }
-            
+
             performAutoRecognition() {
-                if (!this.settings.autoMode) return;
-                
                 const recommendations = this.getActionRecommendations();
                 if (recommendations.length > 0) {
                     const recommended = recommendations[0];
                     this.addLog(`ESR doporučuje: ${this.getActionName(recommended.action)} (${recommended.confidence}%)`, 'info');
-                    
+
                     // Auto-change with high confidence
-                    if (recommended.confidence > 80 && recommended.action !== this.currentAction) {
+                    if (this.settings.autoMode && recommended.confidence > 80 && recommended.action !== this.currentAction) {
                         setTimeout(() => {
                             this.changeAction(recommended.action, 'auto');
                         }, 2000);
                     }
+
+                    // If auto-mode is off, offer confirmation when very confident
+                    if (!this.settings.autoMode && recommended.confidence > 85 && recommended.action !== this.currentAction) {
+                        if (confirm(`Doporučeno přepnout na: ${this.getActionName(recommended.action)} (${recommended.confidence}%). Přepnout?`)) {
+                            this.changeAction(recommended.action, 'auto');
+                        }
+                    }
                 }
             }
-            
+
             getActionRecommendations() {
                 const recommendations = [];
-                
+
                 // Driving recommendation
                 if (this.conditions.ENGINE_ON && this.conditions.GPS_FIX && !this.conditions.IN_PLACE) {
                     recommendations.push({ action: 'driving', confidence: 85 });
                 }
-                
+
                 // Loading/Unloading recommendation
                 if (this.conditions.IN_PLACE && this.conditions.ANY_PTO && this.conditions.ENGINE_ON) {
                     recommendations.push({ 
@@ -946,26 +985,26 @@
                         confidence: 90 
                     });
                 }
-                
+
                 // Break recommendation (every 4.5 hours)
                 const workHours = (this.workTime / 3600);
                 if (workHours > 4.5 && this.currentAction !== 'break') {
                     recommendations.push({ action: 'break', confidence: 95 });
                 }
-                
+
                 // Idle recommendation
                 if (!this.conditions.DRIVING && this.conditions.IDLE && !this.conditions.ANY_PTO) {
                     recommendations.push({ action: 'idle', confidence: 70 });
                 }
-                
+
                 // Fuel recommendation
                 if (this.conditions.FUEL_LOW && this.conditions.IN_PLACE) {
                     recommendations.push({ action: 'fuel', confidence: 95 });
                 }
-                
+
                 return recommendations.sort((a, b) => b.confidence - a.confidence);
             }
-            
+
             getESRRecommendation() {
                 const recommendations = this.getActionRecommendations();
                 if (recommendations.length > 0) {
@@ -973,13 +1012,13 @@
                 }
                 return `Aktuální: ${this.getActionName(this.currentAction)}`;
             }
-            
+
             highlightRecommendedAction() {
                 // Remove previous recommendations
                 document.querySelectorAll('.action-btn.recommended').forEach(btn => {
                     btn.classList.remove('recommended');
                 });
-                
+
                 // Highlight current recommendation
                 const recommendations = this.getActionRecommendations();
                 if (recommendations.length > 0 && recommendations[0].confidence > 75) {
@@ -990,23 +1029,21 @@
                     }
                 }
             }
-            
+
             simulateVehicleMovement() {
                 if (!this.isMoving || this.currentAction !== 'driving') return;
-                
+
                 const vehicle = document.getElementById('main-vehicle');
                 const map = document.getElementById('map');
-                const mapRect = map.getBoundingClientRect();
-                
+
                 // Realistic movement along roads
-                const moveSpeed = 0.5; // pixels per update
+                const moveSpeed = 0.5; // pixels in percent per update
                 const currentLeft = parseFloat(vehicle.style.left) || 45;
                 const currentTop = parseFloat(vehicle.style.top) || 45;
-                
-                // Simple path following - follow roads
+
                 let newLeft = currentLeft;
                 let newTop = currentTop;
-                
+
                 if (Math.abs(currentTop - 50) < 5) { // On horizontal road
                     newLeft += (Math.random() - 0.5) * moveSpeed + moveSpeed * 0.5;
                 } else if (Math.abs(currentLeft - 50) < 5) { // On vertical road
@@ -1016,24 +1053,26 @@
                     if (currentTop < 50) newTop += moveSpeed;
                     else newTop -= moveSpeed;
                 }
-                
+
                 // Bounds checking
                 newLeft = Math.max(2, Math.min(96, newLeft));
                 newTop = Math.max(2, Math.min(96, newTop));
-                
+
                 vehicle.style.left = `${newLeft}%`;
                 vehicle.style.top = `${newTop}%`;
-                
+
                 this.vehiclePosition = { x: newLeft, y: newTop };
-                
-                // Update GPS coordinates (simulate real movement)
-                this.gpsCoords.lat += (Math.random() - 0.5) * 0.0001;
-                this.gpsCoords.lng += (Math.random() - 0.5) * 0.0001;
-                
-                // Update distance
-                this.totalDistance += (this.currentSpeed / 3600) * 0.2; // Every 200ms
+
+                // Update GPS coordinates (simulate real movement only when no GPS)
+                if (!(this.settings.gpsActive && this.gpsWatchId)) {
+                    this.gpsCoords.lat += (Math.random() - 0.5) * 0.0001;
+                    this.gpsCoords.lng += (Math.random() - 0.5) * 0.0001;
+
+                    // Update distance by speed when simulating
+                    this.totalDistance += (this.currentSpeed / 3600) * 0.2; // Every 200ms
+                }
             }
-            
+
             updateVehicleSimulation() {
                 // Simulate engine temperature
                 if (this.conditions.ENGINE_ON) {
@@ -1041,23 +1080,23 @@
                 } else {
                     this.engineTemp = Math.max(20, this.engineTemp - 0.5);
                 }
-                
+
                 // Simulate fuel consumption
                 if (this.currentAction === 'driving' && this.currentSpeed > 30) {
                     this.fuelLevel = Math.max(0, this.fuelLevel - 0.001);
                 } else if (this.currentAction === 'fuel') {
                     this.fuelLevel = Math.min(100, this.fuelLevel + 0.5);
                 }
-                
+
                 // Update conditions based on simulation
                 this.conditions.ENGINE_HOT = this.engineTemp > 95;
                 this.conditions.FUEL_LOW = this.fuelLevel < 20;
             }
-            
+
             updateTime() {
                 document.getElementById('current-time').textContent = 
                     new Date().toLocaleTimeString('cs-CZ');
-                
+
                 // Update shift time
                 const shiftMs = Date.now() - this.shiftStartTime;
                 const shiftHours = Math.floor(shiftMs / (1000 * 60 * 60));
@@ -1065,7 +1104,7 @@
                 document.getElementById('shift-time').textContent = 
                     `${shiftHours}:${shiftMinutes.toString().padStart(2, '0')}`;
             }
-            
+
             updateDisplay() {
                 // Update speed and distance
                 document.getElementById('current-speed').textContent = Math.round(this.currentSpeed);
@@ -1080,52 +1119,57 @@
                 // Update work/break times
                 let currentWorkTime = this.workTime;
                 let currentBreakTime = this.breakTime;
-                
+
                 if (this.workStartTime && this.currentAction !== 'break') {
                     currentWorkTime += Math.floor((Date.now() - this.workStartTime) / 1000);
                 }
                 if (this.breakStartTime && this.currentAction === 'break') {
                     currentBreakTime += Math.floor((Date.now() - this.breakStartTime) / 1000);
                 }
-                
+
                 const workHours = Math.floor(currentWorkTime / 3600);
                 const workMinutes = Math.floor((currentWorkTime % 3600) / 60);
                 document.getElementById('work-time').textContent = 
                     `${workHours}:${workMinutes.toString().padStart(2, '0')}`;
-                
+
                 const breakHours = Math.floor(currentBreakTime / 3600);
                 const breakMins = Math.floor((currentBreakTime % 3600) / 60);
                 document.getElementById('break-time').textContent = 
                     `${breakHours}:${breakMins.toString().padStart(2, '0')}`;
             }
-            
+
             toggleSetting(setting) {
                 this.settings[setting] = !this.settings[setting];
-                
-                // Update toggle visual
-                const toggle = document.getElementById(`${setting.replace(/([A-Z])/g, '-$1').toLowerCase()}-toggle`);
+
+                // Map to toggle element id
+                const toggleId = setting === 'autoMode' ? 'auto-mode-toggle'
+                              : setting === 'gpsActive' ? 'gps-toggle'
+                              : 'pto-toggle';
+                const toggle = document.getElementById(toggleId);
                 toggle.classList.toggle('active');
-                
+
                 // Update conditions based on setting
                 if (setting === 'gpsActive') {
                     this.conditions.GPS_FIX = this.settings.gpsActive;
                     this.addLog(`GPS ${this.settings.gpsActive ? 'zapnuto' : 'vypnuto'}`, 'info');
+                    if (this.settings.gpsActive) this.startGpsWatch();
+                    else this.stopGpsWatch();
                 }
-                
+
                 if (setting === 'ptoConnected') {
                     this.conditions.ANY_PTO = this.settings.ptoConnected && (this.currentAction === 'loading' || this.currentAction === 'unloading');
                     this.addLog(`PTO ${this.settings.ptoConnected ? 'připojeno' : 'odpojeno'}`, 'info');
                 }
-                
+
                 if (setting === 'autoMode') {
                     this.addLog(`Auto-režim ${this.settings.autoMode ? 'aktivní' : 'neaktivní'}`, this.settings.autoMode ? 'success' : 'warning');
                     this.showNotification(`Auto-režim ${this.settings.autoMode ? 'ZAPNUT' : 'VYPNUT'}`, this.settings.autoMode ? 'success' : 'warning');
                 }
             }
-            
+
             checkBreakReminders() {
                 const workHours = (this.workTime + (this.workStartTime ? (Date.now() - this.workStartTime) / 1000 : 0)) / 3600;
-                
+
                 // EU regulations: Break required after 4.5 hours
                 if (workHours > 4.5 && this.currentAction !== 'break' && this.esrTimer % 60 === 0) {
                     this.addLog('UPOZORNĚNÍ: Povinná přestávka po 4,5h práce!', 'error');
@@ -1134,7 +1178,101 @@
                     }
                 }
             }
-            
+
+            // --- GPS & Route ---
+            haversineKm(a, b) {
+                const toRad = d => d * Math.PI / 180;
+                const R = 6371;
+                const dLat = toRad(b.lat - a.lat);
+                const dLng = toRad(b.lng - a.lng);
+                const lat1 = toRad(a.lat);
+                const lat2 = toRad(b.lat);
+                const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+                return 2 * R * Math.asin(Math.sqrt(h));
+            }
+
+            startGpsWatch() {
+                if (!('geolocation' in navigator)) {
+                    this.addLog('GPS není k dispozici v prohlížeči', 'error');
+                    this.showNotification('GPS není dostupná', 'error');
+                    return;
+                }
+                if (this.gpsWatchId) return;
+                this.gpsWatchId = navigator.geolocation.watchPosition(
+                    pos => this.onPosition(pos),
+                    err => {
+                        this.addLog(`GPS chyba: ${err.message}`, 'error');
+                        this.showNotification('Chyba GPS', 'error');
+                    },
+                    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+                );
+                this.addLog('GPS sledování zapnuto', 'info');
+            }
+
+            stopGpsWatch() {
+                if (this.gpsWatchId) {
+                    navigator.geolocation.clearWatch(this.gpsWatchId);
+                    this.gpsWatchId = null;
+                    this.addLog('GPS sledování vypnuto', 'info');
+                }
+            }
+
+            onPosition(pos) {
+                const { latitude, longitude, speed } = pos.coords;
+                const prev = this.lastPosition;
+                const now = { lat: latitude, lng: longitude, at: Date.now() };
+
+                // GPS speed m/s -> km/h
+                if (typeof speed === 'number' && !Number.isNaN(speed)) {
+                    this.currentSpeed = Math.max(0, speed * 3.6);
+                }
+
+                // Distance accumulation (filter noise under ~5m)
+                if (prev) {
+                    const km = this.haversineKm(prev, now);
+                    if (km > 0.005) {
+                        this.totalDistance += km;
+                    }
+                }
+                this.lastPosition = now;
+                this.gpsCoords = { lat: latitude, lng: longitude };
+
+                // Store route (cap length)
+                this.route.push({ lat: latitude, lng: longitude });
+                if (this.route.length > 2000) this.route.shift();
+
+                // Draw point
+                this.drawRoutePoint(latitude, longitude);
+            }
+
+            drawRoutePoint(lat, lng) {
+                const map = document.getElementById('map');
+                if (!map) return;
+
+                // Place near center relative to current coords (symbolic visualization)
+                const x = 50 + (lng - this.gpsCoords.lng) * 3000;
+                const y = 50 - (lat - this.gpsCoords.lat) * 3000;
+
+                const dot = document.createElement('div');
+                dot.className = 'route-dot';
+                dot.style.position = 'absolute';
+                dot.style.width = '4px';
+                dot.style.height = '4px';
+                dot.style.borderRadius = '50%';
+                dot.style.background = '#1d4ed8';
+                dot.style.left = `${Math.max(0, Math.min(98, x))}%`;
+                dot.style.top = `${Math.max(0, Math.min(98, y))}%`;
+                dot.style.opacity = '0.8';
+                map.appendChild(dot);
+
+                // Clean up excess route dots
+                const dots = map.querySelectorAll('.route-dot');
+                if (dots.length > 700) {
+                    const removeCount = dots.length - 700;
+                    for (let i = 0; i < removeCount; i++) dots[i].remove();
+                }
+            }
+
             getConditionDescription(condition) {
                 const descriptions = {
                     GPS_FIX: 'GPS signál k dispozici',
@@ -1150,24 +1288,24 @@
                 };
                 return descriptions[condition] || condition;
             }
-            
+
             getAutoStatus() {
                 if (!this.settings.autoMode) return 'Auto-režim vypnut';
                 if (!this.conditions.GPS_FIX) return 'Čekám na GPS...';
-                
+
                 const recommendations = this.getActionRecommendations();
                 if (recommendations.length > 0) {
                     return `Analyzuji: ${this.getActionName(recommendations[0].action)} (${recommendations[0].confidence}%)`;
                 }
                 return 'Analyzuji podmínky...';
             }
-            
+
             showOtherVehicleInfo(vehicleId) {
                 const vehicleData = {
                     '2': { driver: 'Marie Svobodová', status: 'driving', speed: 72, fuel: 84 },
                     '3': { driver: 'Petr Dvořák', status: 'loading', speed: 0, fuel: 45 }
                 };
-                
+
                 const vehicle = vehicleData[vehicleId];
                 if (vehicle) {
                     this.showNotification(
@@ -1176,33 +1314,33 @@
                     );
                 }
             }
-            
+
             addLog(message, type = 'info') {
                 const logArea = document.getElementById('log-area');
                 const entry = document.createElement('div');
                 entry.className = `log-entry log-${type}`;
                 entry.innerHTML = `<span class="log-timestamp">${new Date().toLocaleTimeString('cs-CZ')}</span> ${message}`;
-                
+
                 logArea.insertBefore(entry, logArea.firstChild);
-                
+
                 // Keep only last 30 entries
                 const entries = logArea.querySelectorAll('.log-entry');
                 if (entries.length > 30) {
                     entries[entries.length - 1].remove();
                 }
             }
-            
+
             showNotification(message, type = 'info') {
                 const notification = document.getElementById('notification');
                 notification.textContent = message;
                 notification.className = `notification ${type}`;
                 notification.classList.add('show');
-                
+
                 setTimeout(() => {
                     notification.classList.remove('show');
                 }, 3000);
             }
-            
+
             getActionName(action) {
                 const names = {
                     'driving': 'Jízda',
@@ -1215,6 +1353,29 @@
                     'unknown': 'Neznámá činnost'
                 };
                 return names[action] || action;
+            }
+
+            exportCsv() {
+                const rows = [['typ','cas','detail']];
+
+                // Fuel logs
+                this.fuels.forEach(f => {
+                    rows.push([
+                        'fuel',
+                        new Date(f.at).toISOString(),
+                        `${f.liters}l; ${f.price || 0}Kc; ${f.coords.lat.toFixed(5)},${f.coords.lng.toFixed(5)}`
+                    ]);
+                });
+
+                // Summary
+                rows.push(['summary', new Date().toISOString(), `distance_km=${this.totalDistance.toFixed(2)}`]);
+
+                const csv = rows.map(r => r.map(x => `"${String(x).replaceAll('"','""')}"`).join(',')).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `stazka_${new Date().toISOString().slice(0,10)}.csv`;
+                a.click();
             }
         }
 
