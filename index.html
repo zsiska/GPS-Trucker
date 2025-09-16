@@ -189,6 +189,14 @@
             z-index: 100;
         }
 
+        .section-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            border: 1px solid #cbd5e1;
+        }
+
         .vehicle-info {
             background: rgba(255, 255, 255, 0.95);
             border-radius: 15px;
@@ -468,6 +476,45 @@
             left: 27px;
         }
 
+        .form {
+            display: grid;
+            gap: 0.6rem;
+        }
+
+        .form-row {
+            display: grid;
+            gap: 0.3rem;
+        }
+
+        .form-row label {
+            font-size: 0.8rem;
+            color: #334155;
+            font-weight: 600;
+        }
+
+        .form-row input, .form-row select, .form-row textarea {
+            padding: 0.55rem 0.65rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+            font-size: 0.95rem;
+        }
+
+        .row-2 {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.5rem;
+        }
+
+        .btn-inline {
+            padding: 0.55rem 0.75rem;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
         @media (max-width: 768px) {
             .main-container {
                 flex-direction: column;
@@ -513,11 +560,78 @@
 
     <div class="main-container">
         <div class="sidebar">
+            <div class="section-card">
+                <h3>Identifikace</h3>
+                <div class="form" id="profile-form">
+                    <div class="form-row">
+                        <label for="driver-name">Jméno řidiče</label>
+                        <input id="driver-name" type="text" placeholder="Jméno a příjmení" value="Jan Novák">
+                    </div>
+                    <div class="form-row">
+                        <label for="driver-id">ID řidiče</label>
+                        <input id="driver-id" type="text" placeholder="ID / číslo" value="12345">
+                    </div>
+                    <div class="form-row">
+                        <label for="vehicle-plate">RZ vozidla</label>
+                        <input id="vehicle-plate" type="text" placeholder="SPZ/RZ" value="1A2 3456">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h3>Stazka (jízda)</h3>
+                <div class="form" id="trip-form">
+                    <div class="form-row">
+                        <label for="client-name">Objednatel / Pro koho</label>
+                        <input id="client-name" type="text" placeholder="Firma / Zákazník">
+                    </div>
+                    <div class="form-row">
+                        <label for="cargo-desc">Co se veze</label>
+                        <input id="cargo-desc" type="text" placeholder="Popis nákladu">
+                    </div>
+                    <div class="form-row row-2">
+                        <div>
+                            <label for="cargo-qty">Množství</label>
+                            <input id="cargo-qty" type="number" inputmode="decimal" placeholder="0">
+                        </div>
+                        <div>
+                            <label for="cargo-unit">Jednotka</label>
+                            <select id="cargo-unit">
+                                <option value="ks">ks</option>
+                                <option value="kg">kg</option>
+                                <option value="t">t</option>
+                                <option value="m3">m³</option>
+                                <option value="pal">pal</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row row-2">
+                        <div>
+                            <label for="start-place">Místo začátku</label>
+                            <input id="start-place" type="text" placeholder="Zadej nebo použij GPS">
+                        </div>
+                        <button type="button" id="btn-start-gps" class="btn-inline">Z GPS</button>
+                    </div>
+                    <div class="form-row row-2">
+                        <div>
+                            <label for="end-place">Místo konce</label>
+                            <input id="end-place" type="text" placeholder="Doplní se při ukončení">
+                        </div>
+                        <button type="button" id="btn-end-gps" class="btn-inline">Z GPS</button>
+                    </div>
+                    <div class="form-row row-2">
+                        <button type="button" id="btn-start-trip" class="btn-inline">Start stazky</button>
+                        <button type="button" id="btn-end-trip" class="btn-inline" disabled>Ukončit stazku</button>
+                    </div>
+                    <small id="trip-status" style="color:#334155;"></small>
+                </div>
+            </div>
+
             <div class="driver-info">
                 <h3>Aktuální řidič</h3>
-                <p><strong>Jan Novák</strong></p>
-                <p>ID: 12345</p>
-                <p>SPZ: 1A2 3456</p>
+                <p><strong id="ui-driver-name">Jan Novák</strong></p>
+                <p>ID: <span id="ui-driver-id">12345</span></p>
+                <p>SPZ: <span id="ui-vehicle-plate">1A2 3456</span></p>
                 <p>Směna: <span id="shift-time">0:00</span></p>
             </div>
 
@@ -588,9 +702,9 @@
                     <h3>Detail vozidla</h3>
                     <div id="selected-vehicle-info">
                         <p><strong>Vozidlo:</strong> Volvo FH16</p>
-                        <p><strong>Řidič:</strong> Jan Novák</p>
+                        <p><strong>Řidič:</strong> <span id="detail-driver-name">Jan Novák</span></p>
                         <p><strong>Režim:</strong> <span id="current-mode">Prostoj</span></p>
-                        <p><strong>Místo:</strong> <span id="current-location">Depot</span></p>
+                        <p><strong>Místo:</strong> <span id="current-location">—</span></p>
                         <p><strong>GPS:</strong> <span id="gps-coords">50.0755, 14.4378</span></p>
                         <p><strong>Rychlost:</strong> <span id="vehicle-speed">0 km/h</span></p>
                         <p><strong>Palivo:</strong> <span id="fuel-level">78%</span></p>
@@ -634,6 +748,17 @@
     <script>
         class FleetManagementSystem {
             constructor() {
+                // Profile
+                this.profile = {
+                    driverName: 'Jan Novák',
+                    driverId: '12345',
+                    vehiclePlate: '1A2 3456'
+                };
+
+                // Trip state
+                this.currentTrip = null;
+                this.trips = [];
+
                 // Core state
                 this.currentAction = 'idle';
                 this.esrTimer = 0;
@@ -686,6 +811,9 @@
             }
 
             initialize() {
+                this.loadFromStorage();
+                this.bindProfileUI();
+                this.bindTripUI();
                 this.setupEventListeners();
                 this.startMainLoop();
                 this.addLog('Systém spuštěn a připraven', 'success');
@@ -696,6 +824,173 @@
 
                 // Export CSV button
                 document.getElementById('export-csv')?.addEventListener('click', () => this.exportCsv());
+
+                // Initial UI sync
+                this.syncProfileToUI();
+                this.syncTripStatus();
+            }
+
+            // --- Storage ---
+            saveToStorage() {
+                const data = {
+                    profile: this.profile,
+                    trips: this.trips,
+                    fuels: this.fuels
+                };
+                try {
+                    localStorage.setItem('ies-fleet', JSON.stringify(data));
+                } catch (e) {
+                    this.addLog('Nelze uložit do localStorage', 'error');
+                }
+            }
+
+            loadFromStorage() {
+                try {
+                    const raw = localStorage.getItem('ies-fleet');
+                    if (!raw) return;
+                    const data = JSON.parse(raw);
+                    if (data.profile) this.profile = data.profile;
+                    if (Array.isArray(data.trips)) this.trips = data.trips;
+                    if (Array.isArray(data.fuels)) this.fuels = data.fuels;
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            // --- Profile UI ---
+            bindProfileUI() {
+                const nameEl = document.getElementById('driver-name');
+                const idEl = document.getElementById('driver-id');
+                const plateEl = document.getElementById('vehicle-plate');
+
+                const onChange = () => {
+                    this.profile.driverName = nameEl.value.trim();
+                    this.profile.driverId = idEl.value.trim();
+                    this.profile.vehiclePlate = plateEl.value.trim();
+                    this.syncProfileToUI();
+                    this.saveToStorage();
+                };
+
+                nameEl.addEventListener('input', onChange);
+                idEl.addEventListener('input', onChange);
+                plateEl.addEventListener('input', onChange);
+
+                // preload inputs
+                nameEl.value = this.profile.driverName || '';
+                idEl.value = this.profile.driverId || '';
+                plateEl.value = this.profile.vehiclePlate || '';
+            }
+
+            syncProfileToUI() {
+                document.getElementById('ui-driver-name').textContent = this.profile.driverName || '—';
+                document.getElementById('ui-driver-id').textContent = this.profile.driverId || '—';
+                document.getElementById('ui-vehicle-plate').textContent = this.profile.vehiclePlate || '—';
+                document.getElementById('detail-driver-name').textContent = this.profile.driverName || '—';
+            }
+
+            // --- Trip UI ---
+            bindTripUI() {
+                const clientEl = document.getElementById('client-name');
+                const cargoEl = document.getElementById('cargo-desc');
+                const qtyEl = document.getElementById('cargo-qty');
+                const unitEl = document.getElementById('cargo-unit');
+                const startPlaceEl = document.getElementById('start-place');
+                const endPlaceEl = document.getElementById('end-place');
+
+                // Prefill cached draft if exists (optional: kept empty by default)
+                const draft = this.currentTrip || {};
+                clientEl.value = draft.client || '';
+                cargoEl.value = draft.cargo || '';
+                qtyEl.value = draft.qty || '';
+                unitEl.value = draft.unit || 'ks';
+                startPlaceEl.value = draft.startPlace || '';
+                endPlaceEl.value = draft.endPlace || '';
+
+                document.getElementById('btn-start-gps').addEventListener('click', () => {
+                    startPlaceEl.value = `${this.gpsCoords.lat.toFixed(5)}, ${this.gpsCoords.lng.toFixed(5)}`;
+                });
+                document.getElementById('btn-end-gps').addEventListener('click', () => {
+                    endPlaceEl.value = `${this.gpsCoords.lat.toFixed(5)}, ${this.gpsCoords.lng.toFixed(5)}`;
+                });
+
+                document.getElementById('btn-start-trip').addEventListener('click', () => {
+                    if (this.currentTrip) {
+                        this.showNotification('Stazka už běží', 'warning');
+                        return;
+                    }
+                    const client = clientEl.value.trim();
+                    const cargo = cargoEl.value.trim();
+                    const qty = parseFloat(qtyEl.value || '0');
+                    const unit = unitEl.value;
+                    let startPlace = startPlaceEl.value.trim();
+                    if (!startPlace) {
+                        startPlace = `${this.gpsCoords.lat.toFixed(5)}, ${this.gpsCoords.lng.toFixed(5)}`;
+                        startPlaceEl.value = startPlace;
+                    }
+
+                    this.currentTrip = {
+                        id: crypto?.randomUUID?.() || String(Date.now()),
+                        driverName: this.profile.driverName,
+                        driverId: this.profile.driverId,
+                        vehiclePlate: this.profile.vehiclePlate,
+                        client,
+                        cargo,
+                        qty: isNaN(qty) ? 0 : qty,
+                        unit,
+                        startPlace,
+                        endPlace: '',
+                        startAt: new Date().toISOString(),
+                        endAt: null,
+                        startCoords: { ...this.gpsCoords },
+                        endCoords: null,
+                        distanceAtStart: this.totalDistance
+                    };
+                    this.addLog(`Stazka START • ${client || '—'} • ${cargo || '—'}`, 'success');
+                    this.showNotification('Stazka zahájena', 'success');
+                    this.syncTripStatus();
+                });
+
+                document.getElementById('btn-end-trip').addEventListener('click', () => {
+                    if (!this.currentTrip) {
+                        this.showNotification('Žádná běžící stazka', 'warning');
+                        return;
+                    }
+                    if (!endPlaceEl.value.trim()) {
+                        endPlaceEl.value = `${this.gpsCoords.lat.toFixed(5)}, ${this.gpsCoords.lng.toFixed(5)}`;
+                    }
+
+                    this.currentTrip.endPlace = endPlaceEl.value.trim();
+                    this.currentTrip.endAt = new Date().toISOString();
+                    this.currentTrip.endCoords = { ...this.gpsCoords };
+                    const tripDistanceKm = Math.max(0, this.totalDistance - (this.currentTrip.distanceAtStart || 0));
+                    this.currentTrip.distanceKm = tripDistanceKm;
+
+                    this.trips.push(this.currentTrip);
+                    this.saveToStorage();
+
+                    this.addLog(`Stazka UKONČENA • ${this.currentTrip.client || '—'} • ${tripDistanceKm.toFixed(2)} km`, 'success');
+                    this.showNotification('Stazka ukončena', 'success');
+
+                    this.currentTrip = null;
+                    document.getElementById('end-place').value = '';
+                    this.syncTripStatus();
+                });
+            }
+
+            syncTripStatus() {
+                const statusEl = document.getElementById('trip-status');
+                const startBtn = document.getElementById('btn-start-trip');
+                const endBtn = document.getElementById('btn-end-trip');
+
+                if (this.currentTrip) {
+                    statusEl.textContent = `Běží: ${new Date(this.currentTrip.startAt).toLocaleString('cs-CZ')} • ${this.currentTrip.client || '—'}`;
+                    startBtn.disabled = true;
+                    endBtn.disabled = false;
+                } else {
+                    statusEl.textContent = 'Stazka neběží';
+                    startBtn.disabled = false;
+                    endBtn.disabled = true;
+                }
             }
 
             setupEventListeners() {
@@ -794,6 +1089,7 @@
                     const price = parseFloat(prompt('Cena celkem (Kč):') || '0');
                     if (liters > 0) {
                         this.fuels.push({ at: Date.now(), liters, price, coords: { ...this.gpsCoords } });
+                        this.saveToStorage();
                         this.addLog(`Tankování: ${liters.toFixed(2)} l, ${price ? price.toFixed(2)+' Kč' : '—'}`, 'success');
                         this.showNotification('Tankování uloženo', 'success');
                     } else {
@@ -1034,7 +1330,6 @@
                 if (!this.isMoving || this.currentAction !== 'driving') return;
 
                 const vehicle = document.getElementById('main-vehicle');
-                const map = document.getElementById('map');
 
                 // Realistic movement along roads
                 const moveSpeed = 0.5; // pixels in percent per update
@@ -1243,6 +1538,9 @@
 
                 // Draw point
                 this.drawRoutePoint(latitude, longitude);
+
+                // Update current location quick label
+                document.getElementById('current-location').textContent = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
             }
 
             drawRoutePoint(lat, lng) {
@@ -1358,6 +1656,15 @@
             exportCsv() {
                 const rows = [['typ','cas','detail']];
 
+                // Trips
+                this.trips.forEach(t => {
+                    rows.push([
+                        'trip',
+                        t.startAt,
+                        `driver=${t.driverName}; vehicle=${t.vehiclePlate}; client=${t.client||'-'}; cargo=${t.cargo||'-'}; qty=${t.qty||0}${t.unit||''}; start=${t.startPlace||'-'}; end=${t.endPlace||'-'}; distance_km=${(t.distanceKm||0).toFixed(2)}`
+                    ]);
+                });
+
                 // Fuel logs
                 this.fuels.forEach(f => {
                     rows.push([
@@ -1367,8 +1674,8 @@
                     ]);
                 });
 
-                // Summary
-                rows.push(['summary', new Date().toISOString(), `distance_km=${this.totalDistance.toFixed(2)}`]);
+                // Summary (running odometer)
+                rows.push(['summary', new Date().toISOString(), `total_distance_km=${this.totalDistance.toFixed(2)}`]);
 
                 const csv = rows.map(r => r.map(x => `"${String(x).replaceAll('"','""')}"`).join(',')).join('\n');
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
