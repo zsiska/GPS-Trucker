@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Elektronická stazka</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * {margin:0;padding:0;box-sizing:border-box}
     body {font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;flex-direction:column}
@@ -30,6 +32,7 @@
     .card h2 {font-size:1.1rem;margin-bottom:0.5rem}
     
     .map-container {height:300px;background:#0f172a;border-radius:8px;position:relative;overflow:hidden}
+    #leaflet-map {height:100%;width:100%;border-radius:8px}
     .vehicle-icon {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:24px;z-index:10}
     .route-dot {position:absolute;width:4px;height:4px;background:#3b82f6;border-radius:50%;opacity:0.7}
     
@@ -110,8 +113,8 @@
     <div class="left-panel">
       <div class="card">
         <h2>Mapa a trasa</h2>
-        <div class="map-container" id="map">
-          <div class="vehicle-icon" id="vehicle">🚛</div>
+        <div class="map-container">
+          <div id="leaflet-map"></div>
         </div>
         <div class="kpis">
           <div class="kpi">
@@ -328,7 +331,11 @@
       lastPosition: null,
       trips: [],
       editingTripId: null,
-      pausedTrip: null
+      pausedTrip: null,
+      map: null,
+      vehicleMarker: null,
+      routePolyline: null,
+      routeCoordinates: []
     };
 
     // Initialize
@@ -337,6 +344,7 @@
       setInterval(updateClock, 1000);
       loadSavedData();
       loadTrips();
+      initializeMap();
       
       // Check for GPS support
       if (!navigator.geolocation) {
@@ -344,6 +352,30 @@
         document.getElementById('btn-gps').disabled = true;
       }
     });
+
+    // Initialize Leaflet map
+    function initializeMap() {
+      // Create map centered on Prague
+      state.map = L.map('leaflet-map').setView([50.0755, 14.4378], 13);
+      
+      // Add OpenStreetMap tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(state.map);
+      
+      // Create vehicle marker with custom icon
+      const vehicleIcon = L.divIcon({
+        html: '🚛',
+        iconSize: [30, 30],
+        className: 'vehicle-marker'
+      });
+      
+      state.vehicleMarker = L.marker([50.0755, 14.4378], {icon: vehicleIcon}).addTo(state.map);
+      
+      // Initialize empty polyline for route
+      state.routePolyline = L.polyline([], {color: '#3b82f6', weight: 4, opacity: 0.7}).addTo(state.map);
+    }
 
     function updateClock() {
       document.getElementById('time').textContent = new Date().toLocaleTimeString('cs-CZ');
@@ -361,6 +393,7 @@
             state.gpsActive = true;
             state.lastPosition = position.coords;
             updateGPSDisplay(position.coords);
+            updateMapPosition(position.coords.latitude, position.coords.longitude);
             
             state.gpsWatchId = navigator.geolocation.watchPosition(
               (pos) => {
@@ -427,10 +460,30 @@
       updateGPSDisplay(coords);
       updateKPIs();
       
-      // Add route dot on map
+      // Update map
+      updateMapPosition(coords.latitude, coords.longitude);
+      
+      // Add to route if trip is active
       if (state.tripActive) {
-        addRouteDot(coords);
+        addRoutePoint(coords.latitude, coords.longitude);
       }
+    }
+
+    function updateMapPosition(lat, lng) {
+      if (state.vehicleMarker) {
+        state.vehicleMarker.setLatLng([lat, lng]);
+        state.map.panTo([lat, lng]);
+      }
+    }
+
+    function addRoutePoint(lat, lng) {
+      state.routeCoordinates.push([lat, lng]);
+      state.routePolyline.setLatLngs(state.routeCoordinates);
+    }
+
+    function clearRoute() {
+      state.routeCoordinates = [];
+      state.routePolyline.setLatLngs([]);
     }
 
     function updateGPSDisplay(coords) {
@@ -444,26 +497,6 @@
       } else if (state.currentStep === 5) {
         document.getElementById('end-place').value = 
           `GPS: ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
-      }
-    }
-
-    function addRouteDot(coords) {
-      const map = document.getElementById('map');
-      const dot = document.createElement('div');
-      dot.className = 'route-dot';
-      
-      // Simple mapping (would need real map integration for production)
-      const x = ((coords.longitude + 180) % 360) / 360 * 100;
-      const y = ((90 - coords.latitude) % 180) / 180 * 100;
-      
-      dot.style.left = x + '%';
-      dot.style.top = y + '%';
-      map.appendChild(dot);
-      
-      // Remove old dots if too many
-      const dots = map.querySelectorAll('.route-dot');
-      if (dots.length > 100) {
-        dots[0].remove();
       }
     }
 
@@ -483,7 +516,7 @@
         document.getElementById('gps-status').textContent = 'Simulace aktivní';
         document.getElementById('gps-status-dot').className = 'dot yellow';
         
-        // Initialize simulated position
+        // Initialize simulated position (Prague center)
         if (!state.lastPosition) {
           state.lastPosition = {
             latitude: 50.0755,
@@ -493,9 +526,9 @@
         
         state.simulationInterval = setInterval(() => {
           if (state.currentMode === 'driving' && state.tripActive) {
-            // Simulate movement
-            state.lastPosition.latitude += (Math.random() - 0.5) * 0.0001;
-            state.lastPosition.longitude += (Math.random() - 0.5) * 0.0001;
+            // Simulate movement along a path
+            state.lastPosition.latitude += (Math.random() - 0.5) * 0.001;
+            state.lastPosition.longitude += (Math.random() - 0.5) * 0.001;
             
             // Simulate speed between 30-80 km/h
             state.speed = 30 + Math.random() * 50;
@@ -504,7 +537,8 @@
             state.odometer += kmPerSecond;
             
             updateGPSDisplay(state.lastPosition);
-            addRouteDot(state.lastPosition);
+            updateMapPosition(state.lastPosition.latitude, state.lastPosition.longitude);
+            addRoutePoint(state.lastPosition.latitude, state.lastPosition.longitude);
           } else {
             state.speed = 0;
           }
@@ -592,8 +626,13 @@
       document.getElementById('btn-end-trip').disabled = false;
       document.getElementById('current-mode').value = 'Jízda zahájena';
       
-      // Clear map
-      document.querySelectorAll('.route-dot').forEach(dot => dot.remove());
+      // Clear route on map
+      clearRoute();
+      
+      // Add starting position to route
+      if (state.lastPosition) {
+        addRoutePoint(state.lastPosition.latitude, state.lastPosition.longitude);
+      }
       
       goToStep(4);
       setMode('driving');
@@ -683,8 +722,8 @@
       document.getElementById('speed').textContent = '0';
       document.getElementById('duration').textContent = '0:00';
       
-      // Clear map
-      document.querySelectorAll('.route-dot').forEach(dot => dot.remove());
+      // Clear route on map
+      clearRoute();
       
       goToStep(2);
     }
