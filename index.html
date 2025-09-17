@@ -77,6 +77,12 @@
     .stop-btn {padding:1rem;border:1px solid #334155;background:#0f172a;color:#e2e8f0;border-radius:6px;cursor:pointer;font-size:1rem;transition:all 0.2s}
     .stop-btn:hover {background:#3b82f6;border-color:#3b82f6}
     
+    /* Loading/Unloading details modal */
+    .cargo-modal {background:#1e293b;border:2px solid #3b82f6}
+    .unit-selector {display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.5rem}
+    .unit-btn {padding:0.3rem 0.6rem;border:1px solid #334155;background:#0f172a;color:#94a3b8;border-radius:4px;cursor:pointer;font-size:0.85rem}
+    .unit-btn.active {background:#3b82f6;color:white;border-color:#3b82f6}
+    
     /* Trip list styles */
     .trip-list {max-height:400px;overflow-y:auto}
     .trip-item {background:#0f172a;border:1px solid #334155;border-radius:6px;padding:1rem;margin-bottom:0.5rem}
@@ -156,6 +162,8 @@
           <button class="btn btn-primary" id="btn-gps">Aktivovat GPS</button>
           <button class="btn btn-warning" id="btn-simulate">Simulace</button>
           <button class="btn btn-secondary" id="btn-saved-trips">Uložené stazky</button>
+          <button class="btn btn-secondary" onclick="exportToJSON()">Export JSON</button>
+          <button class="btn btn-secondary" onclick="exportToCSV()">Export CSV</button>
           <button class="btn btn-danger" id="btn-end-trip" disabled>Ukončit stazku</button>
         </div>
       </div>
@@ -240,7 +248,10 @@
         <h2>Ukončení stazky</h2>
         <div class="form-row">
           <label>Konečné místo</label>
-          <input type="text" id="end-place" placeholder="Načte se z GPS">
+          <div style="display:flex;gap:0.5rem">
+            <input type="text" id="end-place" placeholder="Načte se z GPS" style="flex:1">
+            <button class="btn btn-secondary" onclick="loadCurrentGPS()">Načíst GPS</button>
+          </div>
         </div>
         <div class="form-row">
           <label>Tachometr (km)</label>
@@ -264,6 +275,49 @@
           <button class="btn btn-primary" onclick="newTrip()">Nová stazka</button>
           <button class="btn btn-secondary" onclick="showSavedTrips()">Zobrazit uložené</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for loading/unloading details -->
+  <div class="modal" id="cargo-modal">
+    <div class="modal-content cargo-modal">
+      <div class="modal-header">
+        <h2 id="cargo-modal-title">📦 Detaily nakládky</h2>
+        <button class="close-btn" onclick="closeCargoModal()">&times;</button>
+      </div>
+      <div class="form-row">
+        <label>Pro koho / Od koho</label>
+        <input type="text" id="cargo-client" placeholder="Název firmy nebo jméno">
+      </div>
+      <div class="form-row">
+        <label>Co (popis zboží)</label>
+        <input type="text" id="cargo-description" placeholder="Např. stavební materiál, potraviny...">
+      </div>
+      <div class="form-row">
+        <label>Množství</label>
+        <div style="display:flex;gap:0.5rem">
+          <input type="number" id="cargo-amount" placeholder="0" style="flex:1">
+          <select id="cargo-unit" style="flex:1">
+            <option value="ks">ks</option>
+            <option value="kg">kg</option>
+            <option value="t">t</option>
+            <option value="m3">m³</option>
+            <option value="palety">palety</option>
+            <option value="bedny">bedny</option>
+            <option value="pytle">pytle</option>
+            <option value="barely">barely</option>
+            <option value="kontejnery">kontejnery</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Místo</label>
+        <input type="text" id="cargo-location" placeholder="Načte se z GPS">
+      </div>
+      <div class="buttons">
+        <button class="btn btn-secondary" onclick="closeCargoModal()">Zrušit</button>
+        <button class="btn btn-success" onclick="saveCargoDetails()">Uložit</button>
       </div>
     </div>
   </div>
@@ -367,7 +421,9 @@
         stopModalShown: false,
         checkInterval: null,
         lastMovementTime: Date.now()
-      }
+      },
+      cargoOperations: [],
+      currentCargoType: null
     };
 
     // Initialize
@@ -429,12 +485,62 @@
     }
 
     function handleStop(reason) {
-      // Change mode to selected reason
-      setMode(reason);
-      closeStopModal();
+      if (reason === 'loading' || reason === 'unloading') {
+        // Show cargo details modal
+        state.currentCargoType = reason;
+        document.getElementById('cargo-modal-title').textContent = 
+          reason === 'loading' ? '📦 Detaily nakládky' : '📤 Detaily vykládky';
+        
+        // Pre-fill location with current GPS
+        if (state.lastPosition) {
+          document.getElementById('cargo-location').value = 
+            `GPS: ${state.lastPosition.latitude.toFixed(4)}, ${state.lastPosition.longitude.toFixed(4)}`;
+        }
+        
+        document.getElementById('cargo-modal').classList.add('active');
+        closeStopModal();
+      } else {
+        // Just change mode for break or idle
+        setMode(reason);
+        closeStopModal();
+      }
+    }
+
+    function closeCargoModal() {
+      document.getElementById('cargo-modal').classList.remove('active');
+      // Clear form
+      document.getElementById('cargo-client').value = '';
+      document.getElementById('cargo-description').value = '';
+      document.getElementById('cargo-amount').value = '';
+      document.getElementById('cargo-location').value = '';
+    }
+
+    function saveCargoDetails() {
+      const operation = {
+        type: state.currentCargoType,
+        client: document.getElementById('cargo-client').value,
+        description: document.getElementById('cargo-description').value,
+        amount: document.getElementById('cargo-amount').value,
+        unit: document.getElementById('cargo-unit').value,
+        location: document.getElementById('cargo-location').value,
+        timestamp: new Date().toISOString(),
+        gps: state.lastPosition ? {
+          lat: state.lastPosition.latitude,
+          lng: state.lastPosition.longitude
+        } : null
+      };
       
-      // Log the stop reason
-      console.log(`Zastavení: ${reason} v ${new Date().toLocaleTimeString()}`);
+      // Add to operations list
+      state.cargoOperations.push(operation);
+      
+      // Change mode
+      setMode(state.currentCargoType);
+      
+      closeCargoModal();
+      
+      // Show confirmation
+      const typeText = state.currentCargoType === 'loading' ? 'Nakládka' : 'Vykládka';
+      alert(`${typeText} zaznamenána: ${operation.amount} ${operation.unit} - ${operation.description}`);
     }
 
     // Initialize Leaflet map
@@ -728,7 +834,18 @@
       state.currentStep = step;
       
       if (step === 5) {
+        // Auto-fill end location with current GPS
         document.getElementById('end-odo').value = Math.round(state.odometer);
+        loadCurrentGPS();
+      }
+    }
+
+    function loadCurrentGPS() {
+      if (state.lastPosition) {
+        document.getElementById('end-place').value = 
+          `GPS: ${state.lastPosition.latitude.toFixed(4)}, ${state.lastPosition.longitude.toFixed(4)}`;
+      } else {
+        document.getElementById('end-place').value = 'GPS není dostupná';
       }
     }
 
@@ -762,6 +879,7 @@
       state.odometer = state.tripData.startOdo;
       state.tripActive = true;
       state.startTime = Date.now();
+      state.cargoOperations = []; // Reset cargo operations for new trip
       
       document.getElementById('btn-end-trip').disabled = false;
       document.getElementById('current-mode').value = 'Jízda zahájena';
@@ -823,6 +941,7 @@
       state.tripData.endTime = new Date();
       state.tripData.distance = state.distance;
       state.tripData.status = 'completed';
+      state.tripData.cargoOperations = state.cargoOperations; // Save cargo operations
       
       // Stop simulation/GPS if running
       if (state.simulating) toggleSimulation();
@@ -831,7 +950,21 @@
       // Save trip
       saveTrips();
       
-      // Generate summary
+      // Generate summary with cargo operations
+      let cargoSummary = '';
+      if (state.cargoOperations.length > 0) {
+        cargoSummary = '<p><strong>Nakládky/Vykládky:</strong></p><ul>';
+        state.cargoOperations.forEach(op => {
+          const icon = op.type === 'loading' ? '📦' : '📤';
+          const typeText = op.type === 'loading' ? 'Nakládka' : 'Vykládka';
+          cargoSummary += `<li>${icon} ${typeText}: ${op.amount} ${op.unit} - ${op.description}<br>
+                           Pro/Od: ${op.client || '-'}<br>
+                           Místo: ${op.location}<br>
+                           Čas: ${new Date(op.timestamp).toLocaleString('cs-CZ')}</li>`;
+        });
+        cargoSummary += '</ul>';
+      }
+      
       const summary = `
         <div style="line-height: 1.6">
           <p><strong>Stazka č.:</strong> ${state.tripData.tripNumber}</p>
@@ -841,7 +974,8 @@
           <p><strong>Vzdálenost:</strong> ${state.distance.toFixed(1)} km</p>
           <p><strong>Tachometr:</strong> ${state.tripData.startOdo} → ${state.tripData.endOdo} km</p>
           <p><strong>Čas:</strong> ${state.tripData.startTime.toLocaleString('cs-CZ')} - ${state.tripData.endTime.toLocaleString('cs-CZ')}</p>
-          <p><strong>Náklad:</strong> ${state.tripData.cargo || '-'}</p>
+          <p><strong>Náklad (start):</strong> ${state.tripData.cargo || '-'}</p>
+          ${cargoSummary}
           <p><strong>Palivo:</strong> ${state.tripData.fuel || '-'} l</p>
         </div>
       `;
@@ -850,9 +984,50 @@
       
       // Reset state
       state.tripActive = false;
+      state.cargoOperations = [];
       document.getElementById('btn-end-trip').disabled = true;
       
       goToStep(6);
+    }
+
+    // Export functions with cargo operations
+    function exportToJSON() {
+      const data = {
+        trips: state.trips.map(trip => ({
+          ...trip,
+          cargoOperations: trip.cargoOperations || []
+        }))
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stazky_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+    }
+
+    function exportToCSV() {
+      let csv = 'Číslo stazky,Řidič,Vozidlo,Start místo,Konec místo,Vzdálenost km,Start čas,Konec čas,Typ operace,Klient,Popis,Množství,Jednotka,Místo operace,Čas operace\n';
+      
+      state.trips.forEach(trip => {
+        const baseRow = `${trip.tripNumber},${trip.driverName},${trip.vehiclePlate},${trip.startPlace},${trip.endPlace || ''},${(trip.distance || 0).toFixed(1)},${trip.startTime},${trip.endTime || ''}`;
+        
+        if (trip.cargoOperations && trip.cargoOperations.length > 0) {
+          trip.cargoOperations.forEach(op => {
+            csv += `${baseRow},${op.type},${op.client},${op.description},${op.amount},${op.unit},${op.location},${op.timestamp}\n`;
+          });
+        } else {
+          csv += `${baseRow},-,-,-,-,-,-,-\n`;
+        }
+      });
+      
+      const blob = new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stazky_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
     }
 
     function newTrip() {
