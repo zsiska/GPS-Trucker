@@ -456,8 +456,24 @@
       $('#newTripBtn').addEventListener('click', ()=> setStep(2));
 
       // 1 Intro
-      $('#cta-1').addEventListener('click', ()=> {
-        startGps();
+      $('#cta-1').addEventListener('click', async ()=> {
+        // Check GPS when starting
+        const permissionStatus = await checkGpsPermission();
+        
+        if(permissionStatus === 'prompt') {
+          toast('Aplikace nyní požádá o přístup k GPS', 'info');
+          const granted = await requestGpsPermission();
+          if(granted) {
+            startGps();
+          } else {
+            if(confirm('GPS nebyla povolena. Chcete použít simulaci?')) {
+              toggleSimulation();
+            }
+          }
+        } else if(permissionStatus === 'granted') {
+          startGps();
+        }
+        
         setStep(2);
       });
 
