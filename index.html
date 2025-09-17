@@ -71,6 +71,12 @@
     .modal-header h2 {margin:0}
     .close-btn {background:transparent;border:none;color:#ef4444;font-size:1.5rem;cursor:pointer}
     
+    /* Stop detection modal */
+    .stop-modal {background:#1e293b;border:2px solid #f59e0b;box-shadow:0 0 20px rgba(245,158,11,0.3)}
+    .stop-buttons {display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;margin-top:1rem}
+    .stop-btn {padding:1rem;border:1px solid #334155;background:#0f172a;color:#e2e8f0;border-radius:6px;cursor:pointer;font-size:1rem;transition:all 0.2s}
+    .stop-btn:hover {background:#3b82f6;border-color:#3b82f6}
+    
     /* Trip list styles */
     .trip-list {max-height:400px;overflow-y:auto}
     .trip-item {background:#0f172a;border:1px solid #334155;border-radius:6px;padding:1rem;margin-bottom:0.5rem}
@@ -262,6 +268,26 @@
     </div>
   </div>
 
+  <!-- Modal for stop detection -->
+  <div class="modal" id="stop-modal">
+    <div class="modal-content stop-modal">
+      <div class="modal-header">
+        <h2>⚠️ Vozidlo stojí déle než 10 sekund</h2>
+        <button class="close-btn" onclick="closeStopModal()">&times;</button>
+      </div>
+      <p class="info-text">Vyberte důvod zastavení nebo zavřete pro pokračování v jízdě:</p>
+      <div class="stop-buttons">
+        <button class="stop-btn" onclick="handleStop('loading')">📦 Nakládka</button>
+        <button class="stop-btn" onclick="handleStop('unloading')">📤 Vykládka</button>
+        <button class="stop-btn" onclick="handleStop('break')">☕ Přestávka</button>
+        <button class="stop-btn" onclick="handleStop('idle')">⏸️ Prostoj</button>
+      </div>
+      <div class="buttons" style="margin-top:1rem">
+        <button class="btn btn-secondary" onclick="closeStopModal()">Ignorovat - pokračovat v jízdě</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal for saved trips -->
   <div class="modal" id="trips-modal">
     <div class="modal-content">
@@ -335,7 +361,13 @@
       map: null,
       vehicleMarker: null,
       routePolyline: null,
-      routeCoordinates: []
+      routeCoordinates: [],
+      stopDetection: {
+        stopTime: 0,
+        stopModalShown: false,
+        checkInterval: null,
+        lastMovementTime: Date.now()
+      }
     };
 
     // Initialize
@@ -345,6 +377,7 @@
       loadSavedData();
       loadTrips();
       initializeMap();
+      startStopDetection();
       
       // Check for GPS support
       if (!navigator.geolocation) {
@@ -352,6 +385,57 @@
         document.getElementById('btn-gps').disabled = true;
       }
     });
+
+    // Stop detection system
+    function startStopDetection() {
+      state.stopDetection.checkInterval = setInterval(() => {
+        if (state.tripActive && state.currentMode === 'driving') {
+          // Check if vehicle is stopped (speed < 5 km/h)
+          if (state.speed < 5) {
+            state.stopDetection.stopTime++;
+            
+            // Show modal after 10 seconds of stopping
+            if (state.stopDetection.stopTime >= 10 && !state.stopDetection.stopModalShown) {
+              showStopModal();
+            }
+          } else {
+            // Vehicle is moving - reset stop detection
+            if (state.stopDetection.stopModalShown) {
+              closeStopModal();
+            }
+            state.stopDetection.stopTime = 0;
+            state.stopDetection.lastMovementTime = Date.now();
+          }
+        }
+      }, 1000);
+    }
+
+    function showStopModal() {
+      state.stopDetection.stopModalShown = true;
+      document.getElementById('stop-modal').classList.add('active');
+      
+      // Play sound notification if possible
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLaiTYIGWm98OScTgwOUazn4bNgGwY3lNr0yHkqBSh+zPLaiDYIHWq+8+OWT');
+        audio.volume = 0.3;
+        audio.play();
+      } catch(e) {}
+    }
+
+    function closeStopModal() {
+      state.stopDetection.stopModalShown = false;
+      state.stopDetection.stopTime = 0;
+      document.getElementById('stop-modal').classList.remove('active');
+    }
+
+    function handleStop(reason) {
+      // Change mode to selected reason
+      setMode(reason);
+      closeStopModal();
+      
+      // Log the stop reason
+      console.log(`Zastavení: ${reason} v ${new Date().toLocaleTimeString()}`);
+    }
 
     // Initialize Leaflet map
     function initializeMap() {
@@ -454,7 +538,19 @@
       // Update speed
       if (coords.speed !== null) {
         state.speed = coords.speed * 3.6; // Convert m/s to km/h
+      } else {
+        // Calculate speed from position change
+        if (state.lastPosition && state.lastPosition.timestamp) {
+          const timeDiff = (Date.now() - state.lastPosition.timestamp) / 1000; // seconds
+          const distKm = haversineDistance(state.lastPosition, coords);
+          if (timeDiff > 0) {
+            state.speed = (distKm / timeDiff) * 3600; // km/h
+          }
+        }
       }
+      
+      // Store timestamp for speed calculation
+      coords.timestamp = Date.now();
       
       state.lastPosition = coords;
       updateGPSDisplay(coords);
@@ -467,6 +563,30 @@
       if (state.tripActive) {
         addRoutePoint(coords.latitude, coords.longitude);
       }
+      
+      // Reset stop detection if moving fast enough
+      if (state.speed > 5) {
+        state.stopDetection.stopTime = 0;
+        if (state.stopDetection.stopModalShown) {
+          closeStopModal();
+          // Auto-switch back to driving if we were in another mode
+          if (state.currentMode !== 'driving' && state.tripActive) {
+            setMode('driving');
+          }
+        }
+      }
+    }
+
+    function haversineDistance(pos1, pos2) {
+      const R = 6371; // Earth radius in km
+      const dLat = (pos2.latitude - pos1.latitude) * Math.PI / 180;
+      const dLon = (pos2.longitude - pos1.longitude) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(pos1.latitude * Math.PI / 180) * 
+                Math.cos(pos2.latitude * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
     }
 
     function updateMapPosition(lat, lng) {
@@ -525,20 +645,40 @@
         }
         
         state.simulationInterval = setInterval(() => {
-          if (state.currentMode === 'driving' && state.tripActive) {
-            // Simulate movement along a path
-            state.lastPosition.latitude += (Math.random() - 0.5) * 0.001;
-            state.lastPosition.longitude += (Math.random() - 0.5) * 0.001;
-            
-            // Simulate speed between 30-80 km/h
-            state.speed = 30 + Math.random() * 50;
-            const kmPerSecond = state.speed / 3600;
-            state.distance += kmPerSecond;
-            state.odometer += kmPerSecond;
-            
-            updateGPSDisplay(state.lastPosition);
-            updateMapPosition(state.lastPosition.latitude, state.lastPosition.longitude);
-            addRoutePoint(state.lastPosition.latitude, state.lastPosition.longitude);
+          if (state.tripActive) {
+            if (state.currentMode === 'driving') {
+              // Simulate movement along a path
+              state.lastPosition.latitude += (Math.random() - 0.5) * 0.001;
+              state.lastPosition.longitude += (Math.random() - 0.5) * 0.001;
+              
+              // Simulate speed between 30-80 km/h
+              state.speed = 30 + Math.random() * 50;
+              const kmPerSecond = state.speed / 3600;
+              state.distance += kmPerSecond;
+              state.odometer += kmPerSecond;
+              
+              updateGPSDisplay(state.lastPosition);
+              updateMapPosition(state.lastPosition.latitude, state.lastPosition.longitude);
+              addRoutePoint(state.lastPosition.latitude, state.lastPosition.longitude);
+              
+              // Reset stop detection when moving
+              state.stopDetection.stopTime = 0;
+              if (state.stopDetection.stopModalShown) {
+                closeStopModal();
+              }
+            } else if (state.currentMode === 'loading' || state.currentMode === 'unloading' || 
+                       state.currentMode === 'break' || state.currentMode === 'idle') {
+              // Vehicle is intentionally stopped
+              state.speed = 0;
+              
+              // Occasionally simulate small movements (0-5 km/h) to test stop detection
+              if (Math.random() < 0.1) {
+                state.speed = Math.random() * 5;
+                state.lastPosition.latitude += (Math.random() - 0.5) * 0.00001;
+                state.lastPosition.longitude += (Math.random() - 0.5) * 0.00001;
+                updateMapPosition(state.lastPosition.latitude, state.lastPosition.longitude);
+              }
+            }
           } else {
             state.speed = 0;
           }
