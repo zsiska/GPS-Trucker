@@ -30,7 +30,8 @@
     .card h2 {font-size:1.1rem;margin-bottom:0.5rem}
     
     .map-container {height:300px;background:#0f172a;border-radius:8px;position:relative;overflow:hidden}
-    .vehicle-icon {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:24px}
+    .vehicle-icon {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:24px;z-index:10}
+    .route-dot {position:absolute;width:4px;height:4px;background:#3b82f6;border-radius:50%;opacity:0.7}
     
     .kpis {display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-top:0.5rem}
     .kpi {background:#0f172a;padding:0.5rem;border-radius:6px;text-align:center}
@@ -41,12 +42,13 @@
     .form-row label {display:block;font-size:0.85rem;color:#94a3b8;margin-bottom:0.25rem}
     .form-row input, .form-row select {width:100%;padding:0.5rem;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0}
     
-    .buttons {display:flex;gap:0.5rem;margin-top:1rem}
+    .buttons {display:flex;gap:0.5rem;margin-top:1rem;flex-wrap:wrap}
     .btn {padding:0.5rem 1rem;border:none;border-radius:6px;cursor:pointer;font-weight:500}
     .btn-primary {background:#3b82f6;color:white}
     .btn-secondary {background:#475569;color:white}
     .btn-success {background:#22c55e;color:white}
     .btn-danger {background:#ef4444;color:white}
+    .btn-warning {background:#f59e0b;color:white}
     .btn:disabled {opacity:0.5;cursor:not-allowed}
     
     .screen {display:none}
@@ -57,6 +59,25 @@
     .mode-btn.active {background:#3b82f6;border-color:#3b82f6}
     
     .info-text {color:#94a3b8;font-size:0.9rem;margin:0.5rem 0}
+    
+    /* Modal styles */
+    .modal {display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100}
+    .modal.active {display:flex;align-items:center;justify-content:center}
+    .modal-content {background:#1e293b;border-radius:8px;padding:1.5rem;max-width:600px;max-height:80vh;overflow-y:auto;width:90%}
+    .modal-header {display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+    .modal-header h2 {margin:0}
+    .close-btn {background:transparent;border:none;color:#ef4444;font-size:1.5rem;cursor:pointer}
+    
+    /* Trip list styles */
+    .trip-list {max-height:400px;overflow-y:auto}
+    .trip-item {background:#0f172a;border:1px solid #334155;border-radius:6px;padding:1rem;margin-bottom:0.5rem}
+    .trip-header {display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem}
+    .trip-title {font-weight:bold}
+    .trip-status {padding:0.2rem 0.5rem;border-radius:4px;font-size:0.75rem}
+    .trip-status.active {background:#22c55e;color:white}
+    .trip-status.completed {background:#3b82f6;color:white}
+    .trip-details {font-size:0.85rem;color:#94a3b8;line-height:1.4}
+    .trip-actions {display:flex;gap:0.5rem;margin-top:0.5rem}
     
     @media (max-width: 768px) {
       .main {flex-direction:column}
@@ -71,7 +92,7 @@
       <div class="brand">📍 Elektronická stazka</div>
       <div class="status">
         <span><span class="dot green"></span>Online</span>
-        <span><span class="dot yellow" id="gps-status-dot"></span><span id="gps-status">Simulace</span></span>
+        <span><span class="dot" id="gps-status-dot"></span><span id="gps-status">GPS čeká</span></span>
         <span id="time">--:--:--</span>
       </div>
     </div>
@@ -89,7 +110,7 @@
     <div class="left-panel">
       <div class="card">
         <h2>Mapa a trasa</h2>
-        <div class="map-container">
+        <div class="map-container" id="map">
           <div class="vehicle-icon" id="vehicle">🚛</div>
         </div>
         <div class="kpis">
@@ -113,17 +134,19 @@
       </div>
       
       <div class="card">
-        <h2>Stav</h2>
+        <h2>Stav a ovládání</h2>
         <div class="form-row">
           <label>Aktuální režim</label>
           <input type="text" id="current-mode" disabled value="Připraven">
         </div>
         <div class="form-row">
           <label>GPS souřadnice</label>
-          <input type="text" id="gps-coords" disabled value="50.0755, 14.4378">
+          <input type="text" id="gps-coords" disabled value="Čeká na GPS...">
         </div>
         <div class="buttons">
-          <button class="btn btn-primary" id="btn-simulate">Simulovat jízdu</button>
+          <button class="btn btn-primary" id="btn-gps">Aktivovat GPS</button>
+          <button class="btn btn-warning" id="btn-simulate">Simulace</button>
+          <button class="btn btn-secondary" id="btn-saved-trips">Uložené stazky</button>
           <button class="btn btn-danger" id="btn-end-trip" disabled>Ukončit stazku</button>
         </div>
       </div>
@@ -133,9 +156,10 @@
       <!-- Screen 1: Intro -->
       <div class="card screen active" id="screen-1">
         <h2>Vítejte</h2>
-        <p class="info-text">Systém pro evidenci jízd a stazek. Začněte vyplněním údajů o řidiči.</p>
+        <p class="info-text">Systém pro evidenci jízd a stazek. Pro start aktivujte GPS nebo použijte simulaci.</p>
         <div class="buttons">
-          <button class="btn btn-primary" onclick="goToStep(2)">Začít</button>
+          <button class="btn btn-primary" onclick="goToStep(2)">Nová stazka</button>
+          <button class="btn btn-secondary" onclick="showSavedTrips()">Zobrazit uložené</button>
         </div>
       </div>
 
@@ -169,7 +193,7 @@
         </div>
         <div class="form-row">
           <label>Start místo</label>
-          <input type="text" id="start-place" value="Praha">
+          <input type="text" id="start-place" placeholder="Načte se z GPS">
         </div>
         <div class="form-row">
           <label>Tachometr (km)</label>
@@ -195,7 +219,9 @@
           <button class="mode-btn" data-mode="unloading" onclick="setMode('unloading')">📤 Vykládka</button>
           <button class="mode-btn" data-mode="break" onclick="setMode('break')">☕ Přestávka</button>
         </div>
-        <div class="buttons" style="margin-top:1rem">
+        <div class="info-text" id="trip-info" style="margin-top:1rem"></div>
+        <div class="buttons">
+          <button class="btn btn-warning" onclick="pauseTrip()">Pozastavit</button>
           <button class="btn btn-danger" onclick="goToStep(5)">Ukončit stazku</button>
         </div>
       </div>
@@ -205,7 +231,7 @@
         <h2>Ukončení stazky</h2>
         <div class="form-row">
           <label>Konečné místo</label>
-          <input type="text" id="end-place" value="Brno">
+          <input type="text" id="end-place" placeholder="Načte se z GPS">
         </div>
         <div class="form-row">
           <label>Tachometr (km)</label>
@@ -227,6 +253,58 @@
         <div id="summary-content"></div>
         <div class="buttons">
           <button class="btn btn-primary" onclick="newTrip()">Nová stazka</button>
+          <button class="btn btn-secondary" onclick="showSavedTrips()">Zobrazit uložené</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for saved trips -->
+  <div class="modal" id="trips-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Uložené stazky</h2>
+        <button class="close-btn" onclick="closeSavedTrips()">&times;</button>
+      </div>
+      <div class="trip-list" id="trip-list"></div>
+    </div>
+  </div>
+
+  <!-- Modal for editing trip -->
+  <div class="modal" id="edit-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Upravit stazku</h2>
+        <button class="close-btn" onclick="closeEditModal()">&times;</button>
+      </div>
+      <div id="edit-form">
+        <div class="form-row">
+          <label>Číslo stazky</label>
+          <input type="number" id="edit-trip-number">
+        </div>
+        <div class="form-row">
+          <label>Řidič</label>
+          <input type="text" id="edit-driver-name">
+        </div>
+        <div class="form-row">
+          <label>RZ vozidla</label>
+          <input type="text" id="edit-vehicle-plate">
+        </div>
+        <div class="form-row">
+          <label>Start místo</label>
+          <input type="text" id="edit-start-place">
+        </div>
+        <div class="form-row">
+          <label>Konec místo</label>
+          <input type="text" id="edit-end-place">
+        </div>
+        <div class="form-row">
+          <label>Náklad</label>
+          <input type="text" id="edit-cargo">
+        </div>
+        <div class="buttons">
+          <button class="btn btn-secondary" onclick="closeEditModal()">Zrušit</button>
+          <button class="btn btn-success" onclick="saveEditedTrip()">Uložit změny</button>
         </div>
       </div>
     </div>
@@ -243,8 +321,14 @@
       odometer: 0,
       distance: 0,
       speed: 0,
+      gpsActive: false,
+      gpsWatchId: null,
       simulating: false,
-      simulationInterval: null
+      simulationInterval: null,
+      lastPosition: null,
+      trips: [],
+      editingTripId: null,
+      pausedTrip: null
     };
 
     // Initialize
@@ -252,19 +336,215 @@
       updateClock();
       setInterval(updateClock, 1000);
       loadSavedData();
+      loadTrips();
+      
+      // Check for GPS support
+      if (!navigator.geolocation) {
+        document.getElementById('gps-status').textContent = 'GPS nepodporováno';
+        document.getElementById('btn-gps').disabled = true;
+      }
     });
 
     function updateClock() {
       document.getElementById('time').textContent = new Date().toLocaleTimeString('cs-CZ');
     }
 
+    // GPS functions
+    document.getElementById('btn-gps').addEventListener('click', toggleGPS);
+    
+    function toggleGPS() {
+      if (!state.gpsActive) {
+        // Request GPS permission and start tracking
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            // Success - start watching position
+            state.gpsActive = true;
+            state.lastPosition = position.coords;
+            updateGPSDisplay(position.coords);
+            
+            state.gpsWatchId = navigator.geolocation.watchPosition(
+              (pos) => {
+                updatePosition(pos.coords);
+              },
+              (error) => {
+                console.error('GPS error:', error);
+                document.getElementById('gps-status').textContent = 'GPS chyba';
+              },
+              {
+                enableHighAccuracy: true,
+                maximumAge: 1000,
+                timeout: 5000
+              }
+            );
+            
+            document.getElementById('btn-gps').textContent = 'Vypnout GPS';
+            document.getElementById('gps-status').textContent = 'GPS aktivní';
+            document.getElementById('gps-status-dot').className = 'dot green';
+          },
+          (error) => {
+            alert('GPS přístup zamítnut. Použijte simulaci.');
+            console.error('GPS error:', error);
+          }
+        );
+      } else {
+        // Stop GPS tracking
+        if (state.gpsWatchId) {
+          navigator.geolocation.clearWatch(state.gpsWatchId);
+          state.gpsWatchId = null;
+        }
+        state.gpsActive = false;
+        document.getElementById('btn-gps').textContent = 'Aktivovat GPS';
+        document.getElementById('gps-status').textContent = 'GPS vypnuto';
+        document.getElementById('gps-status-dot').className = 'dot red';
+      }
+    }
+
+    function updatePosition(coords) {
+      if (state.lastPosition) {
+        // Calculate distance using Haversine formula
+        const R = 6371; // Earth radius in km
+        const dLat = (coords.latitude - state.lastPosition.latitude) * Math.PI / 180;
+        const dLon = (coords.longitude - state.lastPosition.longitude) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(state.lastPosition.latitude * Math.PI / 180) * 
+                  Math.cos(coords.latitude * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        
+        if (state.currentMode === 'driving' && state.tripActive) {
+          state.distance += distance;
+          state.odometer += distance;
+        }
+      }
+      
+      // Update speed
+      if (coords.speed !== null) {
+        state.speed = coords.speed * 3.6; // Convert m/s to km/h
+      }
+      
+      state.lastPosition = coords;
+      updateGPSDisplay(coords);
+      updateKPIs();
+      
+      // Add route dot on map
+      if (state.tripActive) {
+        addRouteDot(coords);
+      }
+    }
+
+    function updateGPSDisplay(coords) {
+      document.getElementById('gps-coords').value = 
+        `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`;
+      
+      // Update start/end place with reverse geocoding (simplified)
+      if (state.currentStep === 3) {
+        document.getElementById('start-place').value = 
+          `GPS: ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
+      } else if (state.currentStep === 5) {
+        document.getElementById('end-place').value = 
+          `GPS: ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
+      }
+    }
+
+    function addRouteDot(coords) {
+      const map = document.getElementById('map');
+      const dot = document.createElement('div');
+      dot.className = 'route-dot';
+      
+      // Simple mapping (would need real map integration for production)
+      const x = ((coords.longitude + 180) % 360) / 360 * 100;
+      const y = ((90 - coords.latitude) % 180) / 180 * 100;
+      
+      dot.style.left = x + '%';
+      dot.style.top = y + '%';
+      map.appendChild(dot);
+      
+      // Remove old dots if too many
+      const dots = map.querySelectorAll('.route-dot');
+      if (dots.length > 100) {
+        dots[0].remove();
+      }
+    }
+
+    // Simulation
+    document.getElementById('btn-simulate').addEventListener('click', toggleSimulation);
+    
+    function toggleSimulation() {
+      state.simulating = !state.simulating;
+      
+      if (state.simulating) {
+        // Stop real GPS if active
+        if (state.gpsActive) {
+          toggleGPS();
+        }
+        
+        document.getElementById('btn-simulate').textContent = 'Zastavit simulaci';
+        document.getElementById('gps-status').textContent = 'Simulace aktivní';
+        document.getElementById('gps-status-dot').className = 'dot yellow';
+        
+        // Initialize simulated position
+        if (!state.lastPosition) {
+          state.lastPosition = {
+            latitude: 50.0755,
+            longitude: 14.4378
+          };
+        }
+        
+        state.simulationInterval = setInterval(() => {
+          if (state.currentMode === 'driving' && state.tripActive) {
+            // Simulate movement
+            state.lastPosition.latitude += (Math.random() - 0.5) * 0.0001;
+            state.lastPosition.longitude += (Math.random() - 0.5) * 0.0001;
+            
+            // Simulate speed between 30-80 km/h
+            state.speed = 30 + Math.random() * 50;
+            const kmPerSecond = state.speed / 3600;
+            state.distance += kmPerSecond;
+            state.odometer += kmPerSecond;
+            
+            updateGPSDisplay(state.lastPosition);
+            addRouteDot(state.lastPosition);
+          } else {
+            state.speed = 0;
+          }
+          
+          updateKPIs();
+        }, 1000);
+      } else {
+        document.getElementById('btn-simulate').textContent = 'Simulace';
+        document.getElementById('gps-status').textContent = 'Simulace vypnuta';
+        document.getElementById('gps-status-dot').className = 'dot red';
+        
+        if (state.simulationInterval) {
+          clearInterval(state.simulationInterval);
+          state.simulationInterval = null;
+        }
+        
+        state.speed = 0;
+        updateKPIs();
+      }
+    }
+
+    function updateKPIs() {
+      document.getElementById('speed').textContent = Math.round(state.speed);
+      document.getElementById('distance').textContent = state.distance.toFixed(1);
+      document.getElementById('odometer').textContent = Math.round(state.odometer);
+      
+      if (state.startTime) {
+        const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+        const hours = Math.floor(elapsed / 3600);
+        const minutes = Math.floor((elapsed % 3600) / 60);
+        document.getElementById('duration').textContent = 
+          `${hours}:${minutes.toString().padStart(2, '0')}`;
+      }
+    }
+
+    // Trip management
     function goToStep(step) {
-      // Hide all screens
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      // Show selected screen
       document.getElementById(`screen-${step}`).classList.add('active');
       
-      // Update step indicators
       document.querySelectorAll('.step').forEach((s, i) => {
         s.classList.remove('active', 'done');
         if (i + 1 < step) s.classList.add('done');
@@ -273,7 +553,6 @@
       
       state.currentStep = step;
       
-      // Special actions for certain steps
       if (step === 5) {
         document.getElementById('end-odo').value = Math.round(state.odometer);
       }
@@ -298,11 +577,13 @@
     }
 
     function startTrip() {
+      state.tripData.id = Date.now().toString();
       state.tripData.tripNumber = document.getElementById('trip-number').value;
-      state.tripData.startPlace = document.getElementById('start-place').value;
+      state.tripData.startPlace = document.getElementById('start-place').value || 'Neznámé místo';
       state.tripData.startOdo = parseInt(document.getElementById('start-odo').value) || 0;
       state.tripData.cargo = document.getElementById('cargo').value;
       state.tripData.startTime = new Date();
+      state.tripData.status = 'active';
       
       state.odometer = state.tripData.startOdo;
       state.tripActive = true;
@@ -311,14 +592,17 @@
       document.getElementById('btn-end-trip').disabled = false;
       document.getElementById('current-mode').value = 'Jízda zahájena';
       
+      // Clear map
+      document.querySelectorAll('.route-dot').forEach(dot => dot.remove());
+      
       goToStep(4);
       setMode('driving');
+      updateTripInfo();
     }
 
     function setMode(mode) {
       state.currentMode = mode;
       
-      // Update UI
       document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.classList.remove('active');
         if (btn.dataset.mode === mode) {
@@ -336,17 +620,37 @@
       document.getElementById('current-mode').value = modeNames[mode] || mode;
     }
 
+    function updateTripInfo() {
+      if (state.tripActive) {
+        document.getElementById('trip-info').innerHTML = 
+          `<strong>Stazka #${state.tripData.tripNumber}</strong><br>
+           Start: ${state.tripData.startPlace}<br>
+           Řidič: ${state.tripData.driverName}`;
+      }
+    }
+
+    function pauseTrip() {
+      state.pausedTrip = {...state.tripData, distance: state.distance, odometer: state.odometer};
+      state.tripActive = false;
+      saveTrips();
+      alert('Stazka pozastavena. Můžete ji obnovit v uložených stazkách.');
+      goToStep(1);
+    }
+
     function finishTrip() {
-      state.tripData.endPlace = document.getElementById('end-place').value;
+      state.tripData.endPlace = document.getElementById('end-place').value || 'Neznámé místo';
       state.tripData.endOdo = parseInt(document.getElementById('end-odo').value) || state.odometer;
       state.tripData.fuel = document.getElementById('fuel').value;
       state.tripData.endTime = new Date();
       state.tripData.distance = state.distance;
+      state.tripData.status = 'completed';
       
-      // Stop simulation if running
-      if (state.simulating) {
-        toggleSimulation();
-      }
+      // Stop simulation/GPS if running
+      if (state.simulating) toggleSimulation();
+      if (state.gpsActive) toggleGPS();
+      
+      // Save trip
+      saveTrips();
       
       // Generate summary
       const summary = `
@@ -365,11 +669,6 @@
       
       document.getElementById('summary-content').innerHTML = summary;
       
-      // Save to localStorage
-      const trips = JSON.parse(localStorage.getItem('trips') || '[]');
-      trips.push(state.tripData);
-      localStorage.setItem('trips', JSON.stringify(trips));
-      
       // Reset state
       state.tripActive = false;
       document.getElementById('btn-end-trip').disabled = true;
@@ -383,7 +682,172 @@
       document.getElementById('distance').textContent = '0.0';
       document.getElementById('speed').textContent = '0';
       document.getElementById('duration').textContent = '0:00';
-      goToStep(3);
+      
+      // Clear map
+      document.querySelectorAll('.route-dot').forEach(dot => dot.remove());
+      
+      goToStep(2);
+    }
+
+    // Saved trips management
+    document.getElementById('btn-saved-trips').addEventListener('click', showSavedTrips);
+    
+    function loadTrips() {
+      state.trips = JSON.parse(localStorage.getItem('trips') || '[]');
+    }
+
+    function saveTrips() {
+      // Add or update current trip
+      if (state.tripData.id) {
+        const existingIndex = state.trips.findIndex(t => t.id === state.tripData.id);
+        if (existingIndex >= 0) {
+          state.trips[existingIndex] = state.tripData;
+        } else {
+          state.trips.push(state.tripData);
+        }
+      }
+      
+      localStorage.setItem('trips', JSON.stringify(state.trips));
+    }
+
+    function showSavedTrips() {
+      loadTrips();
+      const modal = document.getElementById('trips-modal');
+      const list = document.getElementById('trip-list');
+      
+      if (state.trips.length === 0) {
+        list.innerHTML = '<p class="info-text">Žádné uložené stazky</p>';
+      } else {
+        list.innerHTML = state.trips.map(trip => `
+          <div class="trip-item">
+            <div class="trip-header">
+              <div class="trip-title">Stazka #${trip.tripNumber}</div>
+              <div class="trip-status ${trip.status}">${trip.status === 'active' ? 'Aktivní' : 'Dokončena'}</div>
+            </div>
+            <div class="trip-details">
+              Řidič: ${trip.driverName}<br>
+              Vozidlo: ${trip.vehiclePlate}<br>
+              Trasa: ${trip.startPlace} ${trip.endPlace ? '→ ' + trip.endPlace : ''}<br>
+              Vzdálenost: ${trip.distance ? trip.distance.toFixed(1) : '0'} km<br>
+              Datum: ${new Date(trip.startTime).toLocaleDateString('cs-CZ')}
+            </div>
+            <div class="trip-actions">
+              <button class="btn btn-primary" onclick="editTrip('${trip.id}')">Upravit</button>
+              ${trip.status === 'active' ? 
+                `<button class="btn btn-success" onclick="continueTrip('${trip.id}')">Pokračovat</button>` : 
+                `<button class="btn btn-secondary" onclick="viewTrip('${trip.id}')">Zobrazit</button>`
+              }
+              <button class="btn btn-danger" onclick="deleteTrip('${trip.id}')">Smazat</button>
+            </div>
+          </div>
+        `).join('');
+      }
+      
+      modal.classList.add('active');
+    }
+
+    function closeSavedTrips() {
+      document.getElementById('trips-modal').classList.remove('active');
+    }
+
+    function editTrip(tripId) {
+      const trip = state.trips.find(t => t.id === tripId);
+      if (!trip) return;
+      
+      state.editingTripId = tripId;
+      
+      document.getElementById('edit-trip-number').value = trip.tripNumber;
+      document.getElementById('edit-driver-name').value = trip.driverName;
+      document.getElementById('edit-vehicle-plate').value = trip.vehiclePlate;
+      document.getElementById('edit-start-place').value = trip.startPlace;
+      document.getElementById('edit-end-place').value = trip.endPlace || '';
+      document.getElementById('edit-cargo').value = trip.cargo || '';
+      
+      document.getElementById('edit-modal').classList.add('active');
+      closeSavedTrips();
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-modal').classList.remove('active');
+      state.editingTripId = null;
+    }
+
+    function saveEditedTrip() {
+      if (!state.editingTripId) return;
+      
+      const trip = state.trips.find(t => t.id === state.editingTripId);
+      if (!trip) return;
+      
+      trip.tripNumber = document.getElementById('edit-trip-number').value;
+      trip.driverName = document.getElementById('edit-driver-name').value;
+      trip.vehiclePlate = document.getElementById('edit-vehicle-plate').value;
+      trip.startPlace = document.getElementById('edit-start-place').value;
+      trip.endPlace = document.getElementById('edit-end-place').value;
+      trip.cargo = document.getElementById('edit-cargo').value;
+      
+      localStorage.setItem('trips', JSON.stringify(state.trips));
+      
+      alert('Stazka byla upravena');
+      closeEditModal();
+      showSavedTrips();
+    }
+
+    function continueTrip(tripId) {
+      const trip = state.trips.find(t => t.id === tripId);
+      if (!trip || trip.status !== 'active') return;
+      
+      // Load trip data
+      state.tripData = trip;
+      state.distance = trip.distance || 0;
+      state.odometer = trip.startOdo + state.distance;
+      state.startTime = new Date(trip.startTime).getTime();
+      state.tripActive = true;
+      
+      // Load driver data
+      document.getElementById('driver-name').value = trip.driverName;
+      document.getElementById('driver-id').value = trip.driverId || '';
+      document.getElementById('vehicle-plate').value = trip.vehiclePlate;
+      
+      document.getElementById('btn-end-trip').disabled = false;
+      
+      closeSavedTrips();
+      goToStep(4);
+      setMode('driving');
+      updateTripInfo();
+      
+      alert(`Pokračování ve stazce #${trip.tripNumber}`);
+    }
+
+    function viewTrip(tripId) {
+      const trip = state.trips.find(t => t.id === tripId);
+      if (!trip) return;
+      
+      const summary = `
+        <div style="line-height: 1.6">
+          <p><strong>Stazka č.:</strong> ${trip.tripNumber}</p>
+          <p><strong>Řidič:</strong> ${trip.driverName}</p>
+          <p><strong>Vozidlo:</strong> ${trip.vehiclePlate}</p>
+          <p><strong>Trasa:</strong> ${trip.startPlace} → ${trip.endPlace || 'Nedokončeno'}</p>
+          <p><strong>Vzdálenost:</strong> ${(trip.distance || 0).toFixed(1)} km</p>
+          <p><strong>Tachometr:</strong> ${trip.startOdo} → ${trip.endOdo || '?'} km</p>
+          <p><strong>Čas:</strong> ${new Date(trip.startTime).toLocaleString('cs-CZ')} ${trip.endTime ? '- ' + new Date(trip.endTime).toLocaleString('cs-CZ') : ''}</p>
+          <p><strong>Náklad:</strong> ${trip.cargo || '-'}</p>
+          <p><strong>Palivo:</strong> ${trip.fuel || '-'} l</p>
+        </div>
+      `;
+      
+      document.getElementById('summary-content').innerHTML = summary;
+      closeSavedTrips();
+      goToStep(6);
+    }
+
+    function deleteTrip(tripId) {
+      if (!confirm('Opravdu chcete smazat tuto stazku?')) return;
+      
+      state.trips = state.trips.filter(t => t.id !== tripId);
+      localStorage.setItem('trips', JSON.stringify(state.trips));
+      
+      showSavedTrips();
     }
 
     function loadSavedData() {
@@ -394,70 +858,17 @@
         document.getElementById('vehicle-plate').value = driverData.plate || '';
       }
       
-      const trips = JSON.parse(localStorage.getItem('trips') || '[]');
-      document.getElementById('trip-number').value = trips.length + 1;
+      loadTrips();
+      const maxTripNumber = Math.max(0, ...state.trips.map(t => parseInt(t.tripNumber) || 0));
+      document.getElementById('trip-number').value = maxTripNumber + 1;
     }
 
-    // Simulation
-    document.getElementById('btn-simulate').addEventListener('click', toggleSimulation);
-    
-    function toggleSimulation() {
-      state.simulating = !state.simulating;
-      
-      if (state.simulating) {
-        document.getElementById('btn-simulate').textContent = 'Zastavit simulaci';
-        document.getElementById('gps-status').textContent = 'Simulace aktivní';
-        document.getElementById('gps-status-dot').className = 'dot green';
-        
-        state.simulationInterval = setInterval(() => {
-          if (state.currentMode === 'driving' && state.tripActive) {
-            // Simulate speed between 30-80 km/h
-            state.speed = 30 + Math.random() * 50;
-            const kmPerSecond = state.speed / 3600;
-            state.distance += kmPerSecond;
-            state.odometer += kmPerSecond;
-            
-            // Update UI
-            document.getElementById('speed').textContent = Math.round(state.speed);
-            document.getElementById('distance').textContent = state.distance.toFixed(1);
-            document.getElementById('odometer').textContent = Math.round(state.odometer);
-            
-            // Update duration
-            if (state.startTime) {
-              const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-              const hours = Math.floor(elapsed / 3600);
-              const minutes = Math.floor((elapsed % 3600) / 60);
-              document.getElementById('duration').textContent = `${hours}:${minutes.toString().padStart(2, '0')}`;
-            }
-            
-            // Move vehicle icon randomly
-            const vehicle = document.getElementById('vehicle');
-            const currentLeft = parseFloat(vehicle.style.left || '50');
-            const currentTop = parseFloat(vehicle.style.top || '50');
-            vehicle.style.left = Math.max(10, Math.min(90, currentLeft + (Math.random() - 0.5) * 2)) + '%';
-            vehicle.style.top = Math.max(10, Math.min(90, currentTop + (Math.random() - 0.5) * 2)) + '%';
-          } else {
-            state.speed = 0;
-            document.getElementById('speed').textContent = '0';
-          }
-        }, 1000);
-      } else {
-        document.getElementById('btn-simulate').textContent = 'Simulovat jízdu';
-        document.getElementById('gps-status').textContent = 'Simulace vypnuta';
-        document.getElementById('gps-status-dot').className = 'dot yellow';
-        
-        if (state.simulationInterval) {
-          clearInterval(state.simulationInterval);
-          state.simulationInterval = null;
-        }
-        
-        state.speed = 0;
-        document.getElementById('speed').textContent = '0';
+    // Auto-update KPIs every second
+    setInterval(() => {
+      if (state.tripActive) {
+        updateKPIs();
       }
-    }
-    
-    // End trip button handler
-    document.getElementById('btn-end-trip').addEventListener('click', () => goToStep(5));
+    }, 1000);
   </script>
 </body>
 </html>
