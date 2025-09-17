@@ -404,7 +404,10 @@
     // Screens wiring
     function wireScreens(){
       // 1 Intro
-      $('#cta-1').addEventListener('click', ()=> setStep(2));
+      $('#cta-1').addEventListener('click', ()=> {
+        startGps();
+        setStep(2);
+      });
 
       // 2 Profile
       $('#back-2').addEventListener('click', ()=> setStep(1));
@@ -903,7 +906,6 @@
       prefillStart();
 
       wireScreens();
-      startGps();
       setInterval(()=> $('#st-time').textContent = new Date().toLocaleTimeString('cs-CZ'), 1000);
       setInterval(tick1s, 1000);
 
@@ -945,3 +947,4 @@
   </script>
 </body>
 </html>
+
