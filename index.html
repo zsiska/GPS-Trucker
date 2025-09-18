@@ -748,18 +748,29 @@
       alert(`Tankování zaznamenáno: ${fuelAmount}l za ${operation.totalPrice} Kč`);
     }
 
-    // Initialize
+    // Enhanced initialization with proper event listeners
     document.addEventListener('DOMContentLoaded', function() {
+      console.log('Application initializing...');
+      
       updateClock();
       setInterval(updateClock, 1000);
       loadSavedData();
       loadTrips();
-      initializeMap();
+      
+      // Initialize map with delay to ensure DOM is ready
+      setTimeout(() => {
+        initializeMap();
+      }, 100);
+      
       startStopDetection();
+      
+      // Setup event listeners properly
+      setupEventListeners();
       
       // Check for GPS support
       if (!navigator.geolocation) {
         document.getElementById('gps-status').textContent = 'GPS nepodporováno';
+        document.getElementById('gps-status-dot').className = 'dot red';
         document.getElementById('btn-gps').disabled = true;
       }
 
@@ -769,7 +780,35 @@
           requestWakeLock();
         }
       });
+
+      console.log('Application initialized successfully');
     });
+
+    // Setup all event listeners
+    function setupEventListeners() {
+      // GPS button
+      const gpsBtn = document.getElementById('btn-gps');
+      if (gpsBtn) {
+        gpsBtn.removeEventListener('click', toggleGPS); // Remove existing listener
+        gpsBtn.addEventListener('click', toggleGPS);
+      }
+
+      // Simulation button  
+      const simBtn = document.getElementById('btn-simulate');
+      if (simBtn) {
+        simBtn.removeEventListener('click', toggleSimulation);
+        simBtn.addEventListener('click', toggleSimulation);
+      }
+
+      // Saved trips button
+      const tripsBtn = document.getElementById('btn-saved-trips');
+      if (tripsBtn) {
+        tripsBtn.removeEventListener('click', showSavedTrips);
+        tripsBtn.addEventListener('click', showSavedTrips);
+      }
+
+      console.log('Event listeners setup completed');
+    }
 
     // Enhanced stop detection system - ONLY works in driving mode
     function startStopDetection() {
@@ -880,70 +919,140 @@
       alert(`${typeText} zaznamenána: ${operation.amount} ${operation.unit} - ${operation.description}`);
     }
 
-    // Initialize Leaflet map
+    // Initialize Leaflet map with error handling
     function initializeMap() {
-      // Create map centered on Prague
-      state.map = L.map('leaflet-map').setView([50.0755, 14.4378], 13);
-      
-      // Add OpenStreetMap tiles
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
-      }).addTo(state.map);
-      
-      // Create vehicle marker with custom icon
-      const vehicleIcon = L.divIcon({
-        html: '🚛',
-        iconSize: [30, 30],
-        className: 'vehicle-marker'
-      });
-      
-      state.vehicleMarker = L.marker([50.0755, 14.4378], {icon: vehicleIcon}).addTo(state.map);
-      
-      // Initialize empty polyline for route
-      state.routePolyline = L.polyline([], {color: '#3b82f6', weight: 4, opacity: 0.7}).addTo(state.map);
+      try {
+        // Ensure container exists and is visible
+        const mapContainer = document.getElementById('leaflet-map');
+        if (!mapContainer) {
+          console.error('Map container not found');
+          return;
+        }
+
+        // Clear any existing map instance
+        if (state.map) {
+          state.map.remove();
+          state.map = null;
+        }
+
+        // Create map centered on Prague with error handling
+        state.map = L.map('leaflet-map', {
+          center: [50.0755, 14.4378],
+          zoom: 13,
+          zoomControl: true,
+          attributionControl: true
+        });
+        
+        // Add OpenStreetMap tiles with error handling
+        const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+          maxZoom: 19,
+          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+        });
+        
+        tileLayer.on('tileerror', function(error) {
+          console.warn('Tile loading error:', error);
+        });
+        
+        tileLayer.addTo(state.map);
+        
+        // Create vehicle marker with custom icon
+        const vehicleIcon = L.divIcon({
+          html: '🚛',
+          iconSize: [30, 30],
+          className: 'vehicle-marker',
+          iconAnchor: [15, 15]
+        });
+        
+        state.vehicleMarker = L.marker([50.0755, 14.4378], {
+          icon: vehicleIcon,
+          draggable: false
+        }).addTo(state.map);
+        
+        // Initialize empty polyline for route
+        state.routePolyline = L.polyline([], {
+          color: '#3b82f6', 
+          weight: 4, 
+          opacity: 0.7,
+          smoothFactor: 1.0
+        }).addTo(state.map);
+
+        // Force map resize after short delay
+        setTimeout(() => {
+          if (state.map) {
+            state.map.invalidateSize();
+          }
+        }, 100);
+
+        console.log('Map initialized successfully');
+        
+      } catch (error) {
+        console.error('Map initialization error:', error);
+        // Show error message to user
+        document.getElementById('leaflet-map').innerHTML = 
+          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;">Chyba načítání mapy</div>';
+      }
     }
 
     function updateClock() {
       document.getElementById('time').textContent = new Date().toLocaleTimeString('cs-CZ');
     }
 
-    // GPS functions
-    document.getElementById('btn-gps').addEventListener('click', toggleGPS);
-    
+    // Enhanced GPS functions with better error handling
     function toggleGPS() {
+      if (!navigator.geolocation) {
+        alert('GPS není podporováno ve vašem prohlížeči');
+        document.getElementById('gps-status').textContent = 'GPS nepodporováno';
+        document.getElementById('gps-status-dot').className = 'dot red';
+        return;
+      }
+
       if (!state.gpsActive) {
         // Request GPS permission and start tracking
+        document.getElementById('gps-status').textContent = 'GPS se aktivuje...';
+        document.getElementById('gps-status-dot').className = 'dot yellow';
+        
         navigator.geolocation.getCurrentPosition(
           (position) => {
+            console.log('GPS position received:', position);
+            
             // Success - start watching position
             state.gpsActive = true;
             state.lastPosition = position.coords;
             updateGPSDisplay(position.coords);
             updateMapPosition(position.coords.latitude, position.coords.longitude);
             
+            // Start continuous tracking
             state.gpsWatchId = navigator.geolocation.watchPosition(
               (pos) => {
+                console.log('GPS update:', pos);
                 updatePosition(pos.coords);
               },
               (error) => {
-                console.error('GPS error:', error);
-                document.getElementById('gps-status').textContent = 'GPS chyba';
+                console.error('GPS tracking error:', error);
+                handleGPSError(error);
               },
               {
                 enableHighAccuracy: true,
-                maximumAge: 1000,
-                timeout: 5000
+                maximumAge: 10000, // Accept 10 second old positions
+                timeout: 15000     // Wait up to 15 seconds for position
               }
             );
             
             document.getElementById('btn-gps').textContent = 'Vypnout GPS';
             document.getElementById('gps-status').textContent = 'GPS aktivní';
             document.getElementById('gps-status-dot').className = 'dot green';
+            
+            console.log('GPS successfully activated');
           },
           (error) => {
-            alert('GPS přístup zamítnut. Použijte simulaci.');
-            console.error('GPS error:', error);
+            console.error('Initial GPS error:', error);
+            handleGPSError(error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
           }
         );
       } else {
@@ -951,12 +1060,50 @@
         if (state.gpsWatchId) {
           navigator.geolocation.clearWatch(state.gpsWatchId);
           state.gpsWatchId = null;
+          console.log('GPS tracking stopped');
         }
         state.gpsActive = false;
         document.getElementById('btn-gps').textContent = 'Aktivovat GPS';
         document.getElementById('gps-status').textContent = 'GPS vypnuto';
         document.getElementById('gps-status-dot').className = 'dot red';
       }
+    }
+
+    function handleGPSError(error) {
+      let errorMessage = '';
+      
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          errorMessage = 'GPS přístup zamítnut. Povolte lokalizaci v nastavení prohlížeče.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMessage = 'GPS pozice není dostupná. Zkuste jít ven nebo k oknu.';
+          break;
+        case error.TIMEOUT:
+          errorMessage = 'GPS timeout. Zkusíme to znovu...';
+          // Auto-retry after timeout
+          setTimeout(() => {
+            if (state.gpsActive) {
+              console.log('Retrying GPS after timeout...');
+              toggleGPS();
+              toggleGPS(); // Double toggle to restart
+            }
+          }, 2000);
+          break;
+        default:
+          errorMessage = 'Neznámá GPS chyba. Použijte simulaci.';
+          break;
+      }
+      
+      document.getElementById('gps-status').textContent = 'GPS chyba';
+      document.getElementById('gps-status-dot').className = 'dot red';
+      
+      // Only show alert for non-timeout errors
+      if (error.code !== error.TIMEOUT) {
+        alert(errorMessage + '\n\nMůžete použít tlačítko "Simulace" pro testování.');
+      }
+      
+      console.error('GPS Error:', errorMessage, error);
     }
 
     function updatePosition(coords) {
@@ -1057,20 +1204,62 @@
     }
 
     function updateMapPosition(lat, lng) {
-      if (state.vehicleMarker) {
-        state.vehicleMarker.setLatLng([lat, lng]);
-        state.map.panTo([lat, lng]);
+      try {
+        if (state.vehicleMarker && state.map) {
+          state.vehicleMarker.setLatLng([lat, lng]);
+          state.map.panTo([lat, lng]);
+          
+          // Ensure map is properly sized
+          setTimeout(() => {
+            if (state.map) {
+              state.map.invalidateSize();
+            }
+          }, 100);
+          
+          console.log(`Map updated to position: ${lat}, ${lng}`);
+        } else {
+          console.warn('Map or vehicle marker not initialized');
+          // Try to reinitialize map if missing
+          if (!state.map) {
+            setTimeout(initializeMap, 500);
+          }
+        }
+      } catch (error) {
+        console.error('Map update error:', error);
+        // Try to reinitialize map on error
+        setTimeout(initializeMap, 1000);
       }
     }
 
     function addRoutePoint(lat, lng) {
-      state.routeCoordinates.push([lat, lng]);
-      state.routePolyline.setLatLngs(state.routeCoordinates);
+      try {
+        if (state.routePolyline && state.map) {
+          state.routeCoordinates.push([lat, lng]);
+          state.routePolyline.setLatLngs(state.routeCoordinates);
+          console.log(`Route point added: ${lat}, ${lng}`);
+        } else {
+          console.warn('Route polyline not initialized');
+          // Store coordinates even if map isn't ready
+          state.routeCoordinates.push([lat, lng]);
+        }
+      } catch (error) {
+        console.error('Route update error:', error);
+        // Just store coordinates if map fails
+        state.routeCoordinates.push([lat, lng]);
+      }
     }
 
     function clearRoute() {
-      state.routeCoordinates = [];
-      state.routePolyline.setLatLngs([]);
+      try {
+        state.routeCoordinates = [];
+        if (state.routePolyline) {
+          state.routePolyline.setLatLngs([]);
+        }
+        console.log('Route cleared');
+      } catch (error) {
+        console.error('Clear route error:', error);
+        state.routeCoordinates = [];
+      }
     }
 
     function updateGPSDisplay(coords) {
